@@ -35,7 +35,33 @@ bloqueante, sin JPA, paginación keyset, DLQ/retry configurables).
 
 ---
 
-## 2. Documentación (índice)
+## 2. Arquitectura (resumen)
+
+Event-driven microservices sobre **Java 25 + Spring WebFlux** con arquitectura
+**hexagonal por servicio**: pipeline reactivo de telemetría fluvial con
+RabbitMQ como columna vertebral, TimescaleDB para series temporales, auth JWT y
+realtime por WebSocket — orquestado con **Spec-Driven Development Gate/Loop
+(SDD-GL)**.
+
+```
+data-simulator ─sensor.lecturas→ ingestion-service ─sensor.alertas→ alerting-service ─WS→ clientes
+sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico keyset + última lectura + WS por sensor
+```
+
+| Servicio | Rol | Notas de arquitectura |
+|---|---|---|
+| `sensor-registry` | CRUD + auth | hex · R2DBC Postgres · guards por atributo de exchange (ADR-0006) · naive-UTC |
+| `data-simulator` | lecturas sintéticas | hex · Reactor RabbitMQ · stateless |
+| `ingestion-service` | consume + severidad + persistencia | hex · R2DBC **TimescaleDB** hypertable · DLQ/DLX configurable |
+| `alerting-service` | histéresis + notificación | hex · debounce temporal · WebSocket `/ws/alertas` |
+| `query-api` | consulta histórica/última/tiempo real | hex · R2DBC lectura · consumer `sensor.lecturas` → WS por sensor |
+
+Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
+paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **164 verdes**.
+Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
+
+## 3. Documentación (índice)
 
 | Documento | Contenido |
 |---|---|
@@ -51,7 +77,7 @@ bloqueante, sin JPA, paginación keyset, DLQ/retry configurables).
 
 ---
 
-## 3. Estado de los Work Items
+## 4. Estado de los Work Items
 
 | Contract | Funcionalidad | Estado | Suite asociada |
 |---|---|---|---|
@@ -72,7 +98,7 @@ bloqueante, sin JPA, paginación keyset, DLQ/retry configurables).
 
 ---
 
-## 4. Quickstart
+## 5. Quickstart
 
 Requisitos: JDK 25, Maven (ver ruta en `docs/RUNBOOK.md`), Docker Desktop.
 
@@ -91,10 +117,11 @@ Credenciales dev (auth FEAT-0006): `admin@wrsensor.local` / `Admin123!` ·
 
 ---
 
-## 5. Nota sobre el frame SDD-GL
+## 6. Nota sobre el frame SDD-GL
 
 Frame **SDD-GL v0.3.0** instalado en el repo (protocolos EXPRESS/STRICT, Glass Box
 en `.sdd/runs/`, orquestadores `CLAUDE.md`/`AGENTS.md`, skills en `.agents/skills/`,
 presets y spec MCP en `mcp/`). Autor: [CharlyZeta/SDD-GL](https://github.com/CharlyZeta/SDD-GL).
+
 
 
