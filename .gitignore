@@ -1,0 +1,24 @@
+# Builds
+**/target/
+**/build/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Entornos / secretos
+.env
+*.local.yml
+
+# Logs
+*.log
+logs/

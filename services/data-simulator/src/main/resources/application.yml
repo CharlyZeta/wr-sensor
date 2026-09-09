@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: data-simulator
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:guest}
+    password: ${RABBIT_PASS:guest}
+
+simulador:
+  # Default global de frecuencia por sensor (segundos) si el sensor no trae la suya.
+  frecuencia-reporte-segundos: 30
+  ruido:
+    sigma-metros: 0.05
+  anomalia:
+    segundos: 10
+    salto-metros: 2.0
+  lecturas:
+    exchange: sensor.lecturas
+  sensores:
+    - codigo: PARANA-RECONQUISTA
+      nombre: Reconquista
+      unidadMedida: METROS
+      nivelBase: 5.1
+      rangoNormalMax: 7.0
+    - codigo: PARANA-SANTAFE
+      nombre: Puerto de Santa Fe
+      unidadMedida: METROS
+      nivelBase: 5.3
+      rangoNormalMax: 7.0
+    - codigo: PARANA-ROSARIO
+      nombre: Rosario
+      unidadMedida: METROS
+      nivelBase: 5.0
+      rangoNormalMax: 7.0
+    - codigo: SALADO-SANJUSTO
+      nombre: San Justo (R.P. 2)
+      unidadMedida: METROS
+      nivelBase: 9.0
+      rangoNormalMax: 11.0
+    - codigo: SALADO-RECREO
+      nombre: Recreo (R.P. 70)
+      unidadMedida: METROS
+      nivelBase: 4.7
+      rangoNormalMax: 6.5
+    - codigo: SALADO-SANTOTOME
+      nombre: Santo Tomé
+      unidadMedida: METROS
+      nivelBase: 4.7
+      rangoNormalMax: 6.5
+
+logging:
+  level:
+    com.wrsensor.datasimulator: INFO

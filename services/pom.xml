@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Parent agregador (Maven multi-modulo) de los servicios WR-Sensor.
+  Cada modulo conserva su propio spring-boot-starter-parent.
+  Uso: mvn -o install -DskipTests   (desde services/)
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.wrsensor</groupId>
+    <artifactId>wrsensor-services</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>WR-Sensor Services (aggregator)</name>
+
+    <modules>
+        <module>sensor-registry</module>
+        <module>data-simulator</module>
+        <module>ingestion-service</module>
+        <module>alerting-service</module>
+        <module>query-api</module>
+    </modules>
+</project>

@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: alerting-service
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:guest}
+    password: ${RABBIT_PASS:guest}
+
+alerting:
+  histeresis-segundos: 60
+  alertas:
+    exchange: sensor.alertas
+    queue: queue.sensor.alertas
+    dlq-queue: queue.sensor.alertas.dlq
+    dlx: sensor.alertas.dlx
+  messaging:
+    retry-max-attempts: 3
+    dead-letter-exchange: sensor.alertas.dlx
+
+logging:
+  level:
+    com.wrsensor.alerting: INFO

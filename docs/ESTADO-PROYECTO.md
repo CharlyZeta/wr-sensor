@@ -1,0 +1,192 @@
+# Estado del Proyecto — WR-Sensor (Water Level Monitoring Platform)
+
+> Bitácora de avance del proyecto bajo SDD-GL. Orquestador la actualiza al cerrar
+> cada Work Item. Última actualización: 2026-09-09.
+> Spec base: `docs/water-monitoring-spec.md`. Stack: `stack.md`.
+> Documentación consolidada: `README.md`, `docs/ARQUITECTURA.md`, `docs/API.md`,
+> `docs/RUNBOOK.md`, `docs/DECISIONES.md`, `docs/REGISTRO-SDD.md`.
+
+---
+
+## 1. Avance global
+
+| Microservicio (según spec §3) | Estado | Implementación | Contracts cerrados |
+|---|---|---|---|
+| `sensor-registry` | 🟡 parcial | CRUD de sensores completo — `POST` (FEAT-0001), `GET` listado keyset (FEAT-0002), `GET /{id}` (FEAT-0003), `PUT /{id}` (FEAT-0004), **`DELETE /{id}` baja lógica** (FEAT-0005) + auth JWT real (FEAT-0006) + fix handler (FIX-0001) | `FEAT-0001`..`FEAT-0006`, `FIX-0001` (RESOLVED) |
+| `data-simulator` | 🟢 parcial | `services/data-simulator/` — generador de lecturas sintéticas (6 sensores seed §9.5) que publica a `sensor.lecturas`; control `iniciar/detener/{id}/anomalia/estado` | `FEAT-0010` (RESOLVED) |
+| `ingestion-service` | 🟢 parcial | `services/ingestion-service/` — consume `sensor.lecturas`, persiste en TimescaleDB (hypertable `lectura`) y publica `AlertaEvento` simple a `sensor.alertas` (histéresis → FEAT-0012); DLQ por rechazos | `FEAT-0011` (RESOLVED) |
+| `alerting-service` | 🟢 parcial | `services/alerting-service/` — consume `sensor.alertas`, histéresis (subida inmediata, bajada confirmada por ventana), push WebSocket `/ws/alertas` | `FEAT-0012` (RESOLVED) |
+| `query-api` | 🟢 parcial | `services/query-api/` — histórico keyset, `/actual` (última lectura), `WS /ws/sensores/{id}` tiempo real (consume `sensor.lecturas`) | `FEAT-0013` (RESOLVED) |
+| Frontend (React + mapa Leaflet/MapLibre + dashboards) | ⬜ sin iniciar | — | — |
+| Infra local (Docker Compose de los 5 servicios) | ⬜ sin iniciar | — | — |
+
+**Conclusión:** el proyecto sigue en ~80%. **Pipeline completo + capa de consulta**: histórico/última/tiempo real vía `query-api` (FEAT-0013). Falta frontend e infra (docker-compose). (Histórico previo: pipeline de datos completo en
+funcionamiento**: `data-simulator` (FEAT-0010) publica lecturas → `ingestion-service`
+(FEAT-0011) persiste en TimescaleDB y emite severidad a `sensor.alertas` →
+`alerting-service` (FEAT-0012) aplica histéresis y notifica por WebSocket. Falta la
+capa de consulta (`FEAT-0013` query-api), frontend e infra (docker-compose).
+CRUD + auth (FEAT-0001..0006, FIX-0001) cerrados.
+
+---
+
+## 2. Lo realizado
+
+### 2a. `FEAT-0001` (RESOLVED) — alta de sensor
+`POST /api/sensores` con rol `ADMIN`. Detalle completo en versiones previas de esta
+bitácora: dominio hexagonal (`Sensor`, rangos, 8 `SensorException` con `code`),
+`CreateSensorUseCase/Service` (valida BR-001..BR-009), controller WebFlux + `RolGuard`
+(401/403) + `GlobalErrorHandler`, persistencia R2DBC, evento RabbitMQ `sensor.created`.
+
+### 2b. `FIX-0001` (RESOLVED) — handler emitía class name en vez de domain code
+`GlobalErrorHandler.deriveCodeFromBinding` (path de Bean Validation) ahora mapea a los
+`code` estables del dominio (`SENSOR_INVALID_*`) en vez de `*.class.getSimpleName()`.
+
+### 2c. `FEAT-0002` (RESOLVED 2026-09-09) — listado keyset
+`GET /api/sensores` con paginación **keyset/cursor** (nunca OFFSET), roles `ADMIN` y
+`VIEWER` (lectura), `limit` default 100 máx 1000, orden DESC por `fechaInstalacion`
+con desempate ASC por `id`, `nextCursor` opaco solo si hay más.
+
+**Fix técnico aplicado durante el Loop** (bug real, reproducido por
+`FEAT0002MainFlowIT`): el desempate del cursor se rompía cuando dos sensores
+compartían `fechaInstalacion` (se perdía la fila empardada en el corte de página).
+Causa raíz: desajuste naive/timezone — `java.sql.Timestamp` era convertido por Spring
+R2DBC a wall-clock local (UTC-3), desplazando la comparación en cada cruce
+escritura/lectura/predicado. Solución: **naive-UTC consistente** con
+`LocalDateTime.ofInstant(ts, UTC)` en `SensorPersistenceAdapter.save`,
+`SensorListPersistenceAdapter.listAfter` y el seeding espejo de `FEAT0002MainFlowIT`.
+
+**Tests (suite `sensor-registry` al cierre de FEAT-0003, 2026-09-09: 67 unit/assert + 9 ITs = 76 verdes):**
+| Suite | Tests | Cubre |
+|---|---|---|
+| `ListSensorsServicePaginationTest` | 15 ✅ | BR-001..005, AC-001/005/008/009/011/012 (servicio + fakes keyset) |
+| `ListSensorsAuthTest` | 6 ✅ | BR-006/007, AF-02, AC-002/003/004 (guard `requireReader`) |
+| `ListSensorsACTest` | 3 ✅ | AC-006/007/010 (mapeo `SENSOR_INVALID_LIMIT/CURSOR`) |
+| `FEAT0002MainFlowIT` | 1 ✅ | Main Flow e2e (Postgres+RabbitMQ reales, Testcontainers) |
+| Regresión FEAT-0001/FIX | 39 ✅ | `CreateSensorServiceBRTest`, `CreateSensorACTest`, `AF04RolGuardTest`, `FIX0001Ac001Test`, `FEAT0001MainFlowIT` |
+
+### 2d. `FEAT-0003` (RESOLVED 2026-09-09) — detalle de sensor
+`GET /api/sensores/{id}`: lectura `{ADMIN, VIEWER}` (mismo `RolGuard.requireReader`),
+devuelve el `SensorResponse` completo; UUID inexistente → `404 SENSOR_NOT_FOUND`;
+id malformado → `400 SENSOR_INVALID_ID` (code nuevo aprobado en HO-Gate); sensores
+`INACTIVO`/`MANTENIMIENTO` se devuelven sin filtrar (decisión HO-Gate). Implementación:
+`GetSensorDetailUseCase/Service`, `FindSensorByIdPort` (método `findById` en
+`SensorListPersistenceAdapter`), endpoint en `SensorController`, mapeos nuevos en
+`GlobalErrorHandler`.
+
+| Suite | Tests | Cubre |
+|---|---|---|
+| `FEAT0003MainFlowIT` | 7 ✅ | Main Flow e2e + AC-001..007 (200/VIEWER/401/403/404/400/INACTIVO) |
+| `GetSensorDetailServiceTest` | 3 ✅ | BR-002 (404), BR-005 (shape), BR-006 (INACTIVO visible) |
+| `GetSensorDetailACTest` | 2 ✅ | AC-005 (404) y AC-006 (400) mapeo dominio→HTTP |
+
+### 2e. `FEAT-0006` (RESOLVED 2026-09-09) — auth JWT real
+`POST /api/auth/login` emite **JWT HS256** (`{token, rol, expiraEnSegundos}`) validando
+`Usuario` (tabla `usuario`: email único + `passwordHash` **BCrypt**). El `RolFilter`
+ahora **verifica firma + exp** de cada `Authorization: Bearer <jwt>` (reemplaza el
+header literal `Bearer ROLE` de v1-fake — AC-008: el literal ya no es aceptado).
+Decisiones HO-Gate: seed dev de 2 usuarios (`admin@wrsensor.local`/`Admin123!`,
+`viewer@wrsensor.local`/`Viewer123!` vía `DevUserSeeder`, upsert por email),
+expiración 1 h configurable (`auth.jwt.expiration-seconds`), secret configurable
+(`auth.jwt.secret` / env `AUTH_JWT_SECRET`), sin refresh/blacklist en v1. Los ITs de
+FEAT-0001/0002/0003 se migraron a tokens reales vía login (decisión humana).
+
+> Nota de implementación: JWT HS256 implementado con JDK estándar
+> (`infrastructure/adapter/out/security/JwtAdapter`, sin dependencias nuevas —
+> jjwt/nimbus incompletos en el `.m2` offline). Documentado en el audit FEAT-0006.
+
+| Suite | Tests | Cubre |
+|---|---|---|
+| `FEAT0006MainFlowIT` | 8 ✅ | login admin/viewer, 401 credenciales (email inexistente = password incorrecta), 400 body inválido, endpoint protegido con JWT real, token expirado/firma inválida → 401, literal legacy → 401 |
+| `JwtAdapterTest` | 7 ✅ | BR-003 claims/exp, BR-004 rechazo (manipulado/expirado/firma), rol ajeno → OTHER, BR-005 stateless, AF-06 |
+| `LoginServiceTest` | 4 ✅ | AC-001..004 + BR-002 (normalización email, error indistinguible) |
+| `BCryptPasswordVerifierTest` | 1 ✅ | BR-001 (hash ≠ plaintext, BCrypt) |
+
+**Suite `sensor-registry` actual (2026-09-09): 79 unit/assert + 17 ITs = 96 verdes.**
+
+### 2f. `FEAT-0004` (RESOLVED 2026-09-09) — edición de configuración
+`PUT /api/sensores/{id}` (ADMIN-only) edita el subset de medición/alerta
+(`estado` ACTIVO/MANTENIMIENTO, `histeresis`, `frecuenciaReporteSegundos`, 3
+rangos) validando las mismas invariantes que el alta; identidad inmutable
+(`id/codigo/nombre/tipo/ubicación/unidad/fecha`); `INACTIVO` rechazado (400 —
+baja lógica es FEAT-0005); aplica solo a lecturas futuras (sin reproceso); sin
+evento en v1 (decisión HO-Gate). Jackson estricto (`fail-on-unknown-properties`)
++ handlers `HttpMessageNotReadable`/`ServerWebInputException` →
+`SENSOR_INVALID_REQUEST` para campos no editables.
+
+| Suite | Tests | Cubre |
+|---|---|---|
+| `FEAT0004MainFlowIT` | 9 ✅ | Main Flow + AC-001..009 e2e (200/403/401/404/400s, body incompleto/inmutable) |
+| `UpdateSensorServiceTest` | 7 ✅ | BR-002/006/007/008, AC-001/004/006/007/008 (fakes) |
+
+**Suite `sensor-registry` actual (2026-09-09): 86 unit/assert + 26 ITs = 112 verdes.**
+
+### 2g. `FEAT-0005` (RESOLVED 2026-09-09) — baja lógica
+`DELETE /api/sensores/{id}` (ADMIN): estado → `INACTIVO` vía UPDATE (nunca DELETE
+físico; BR-004); re-baja idempotente 204 (BR-005); el sensor sigue visible en
+listado/detalle (BR-006, decisiones FEAT-0002/0003); reactivación vía PUT FEAT-0004
+(BR-007/AC-008). Decisiones HO-Gate: verbo DELETE, 204 idempotente, visibilidad
+preservada.
+
+> Fix infra durante el Loop (audit FEAT-0005): los guards por Reactor Context eran
+> inestables (re-suscripciones del handler Mono sin contexto). Ahora `RolFilter`
+> resuelve el rol una vez y lo guarda como atributo del exchange; los guards de
+> controller leen el atributo (`RolGuard.requireAdmin/requireReader(exchange,…)`).
+> Overloads por Context se conservan para unit tests.
+
+| Suite | Tests | Cubre |
+|---|---|---|
+| `FEAT0005MainFlowIT` | 8 ✅ | Main Flow + AC-001..008 e2e (204+INACTIVO, 403/401/404/400, re-baja, visible en listado, reactivación) |
+| `DeactivateSensorServiceTest` | 3 ✅ | BR-002/004/005 (404, UPDATE INACTIVO, no-op idempotente) |
+
+**Suite `sensor-registry` actual (2026-09-09): 89 unit/assert + 34 ITs = 123 verdes.**
+
+---
+
+## 3. Pendiente — tabla detallada para continuar
+
+Cada fila es candidato a un nuevo Contract (`/sdd-feature` salvo las marcadas `/sdd-fix`).
+
+### 3a. `sensor-registry` — completar el servicio
+✅ CRUD de sensores completo (POST/GET listado/GET detalle/PUT/DELETE baja lógica)
++ auth JWT real (FEAT-0001..0006, FIX-0001). Sin pendientes en este servicio.
+
+### 3b. Servicios no iniciados
+| ID sugerido | Servicio | Alcance (qué cubriría el Contract) | Fuente spec |
+|---|---|---|---|
+| `FEAT-0013` | `query-api` | `GET /api/sensores/{id}/lecturas?desde&hasta` (histórico keyset), `GET .../actual` (desde Redis última lectura), `WS /ws/sensores/{id}` tiempo real | §3, §7, §9.2/§9.4 |
+
+### 3c. Transversal / infra
+| Ítem | Qué falta |
+|---|---|
+| `docker-compose.yml` | ✅ CREADO (2026-09-09): 5 servicios + Postgres + TimescaleDB + Redis + RabbitMQ; `docker compose up` |
+| `application.yml` de cada servicio | ✅ reintentos/DLQ configurables (`messaging.retry.*`, `messaging.dead-letter.exchange`) — stack exige "nunca hardcodeados" |
+| Datos semilla | 6 sensores reales Paraná+Salado/Santa Fe (spec §9.5) |
+| Manifiestos K8s | solo documentación futura (v1 no se implementan) |
+| Parent Maven multi-módulo | ✅ CREADO (`services/pom.xml`, 5 módulos) + Dockerfiles por servicio |
+
+---
+
+## 4. Cómo continuar (siguiente sesión)
+
+1. Arrancar el orquestador (`CLAUDE.md` rige). Independiente del Work Item,
+   leer `contracts/[ID].md`; si no existe → `/sdd-feature` (o `/sdd-fix`) para crearlo.
+2. **Recomendación de orden lógico de dependencias:**
+   `FEAT-0011` (ingestion: consume `sensor.lecturas`, persiste TimescaleDB, evalúa
+   severidad) → `FEAT-0012` (alerting) → `FEAT-0013` (query-api) → frontend →
+   docker-compose. Productor (`FEAT-0010`) y CRUD/auth (`FEAT-0001..0006`) ya están
+   cerrados.
+3. Frame SDD-GL: actualizado a v0.3.0 (protocol EXPRESS/STRICT, Glass Box en
+   `.sdd/runs/`, AGENTS.md + `.agents/skills`, presets, mcp, CHANGELOG). Los agentes
+   `.claude/agents/*` usan `model: sonnet` (v0.3.0 del repo).
+4. Build del `sensor-registry` (mvn no está en PATH, no hay `mvnw`):
+
+```bash
+cd "D:/ProyectosDual/WR-Sensor/services/sensor-registry" && \
+JAVA_HOME="/c/Program Files/Amazon Corretto/jdk25.0.3_9" \
+  "/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn" \
+  -o test
+```
+
+> Los ITs necesitan Docker Desktop corriendo (Testcontainers: postgres + rabbitmq).
+
+

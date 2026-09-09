@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find . -maxdepth 3 -type d -not -path '*/\\\\.*')",
+      "Bash(mvn -q -o test -Dtest='CreateSensorServiceBRTest,CreateSensorACTest,AF04RolGuardTest')",
+      "Read(//c/Users/Gerardo/.m2/wrapper/**)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Amazon Corretto/jdk25.0.3_9\" \"/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn\" -o -q test -Dtest='CreateSensorServiceBRTest,CreateSensorACTest,AF04RolGuardTest,FEAT0001MainFlowIT')",
+      "Bash(JAVA_HOME=\"/c/Program Files/Amazon Corretto/jdk25.0.3_9\" \"/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn\" -o test -Dtest='CreateSensorServiceBRTest,CreateSensorACTest,AF04RolGuardTest,FEAT0001MainFlowIT')",
+      "Bash(env)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Amazon Corretto/jdk25.0.3_9\" \"/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn\" -o test -Dtest='FIX0001Ac001Test')",
+      "Bash(JAVA_HOME=\"/c/Program Files/Amazon Corretto/jdk25.0.3_9\" \"/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn\" -o -Dtest='FIX0001Ac001Test' test)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Amazon Corretto/jdk25.0.3_9\" \"/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn\" -o test-compile)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Amazon Corretto/jdk25.0.3_9\" \"/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn\" -o test-compile -q)",
+      "Bash(\"/c/Program Files/Amazon Corretto/jdk25.0.3_9/bin/java\" -cp \"target/classes\" com.wrsensor.sensorregistry.application.service.CursorCodec)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Amazon Corretto/jdk25.0.3_9\" \"/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn\" -o -Dtest='CreateSensorServiceBRTest,CreateSensorACTest,AF04RolGuardTest' test)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Amazon Corretto/jdk25.0.3_9\" \"/c/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn\" -o -Dtest='FEAT0002MainFlowIT' test)"
+    ]
+  }
+}

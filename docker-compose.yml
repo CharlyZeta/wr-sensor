@@ -1,0 +1,130 @@
+name: wrsensor
+
+services:
+  # ===== Infraestructura =====
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports: ["5672:5672", "15672:15672"]
+    environment:
+      RABBITMQ_DEFAULT_USER: wrsensor
+      RABBITMQ_DEFAULT_PASS: wrsensor
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-metadata:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: wrsensor
+      POSTGRES_USER: wrsensor
+      POSTGRES_PASSWORD: wrsensor
+    ports: ["5432:5432"]
+    volumes: [pg-metadata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wrsensor -d wrsensor"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: wrsensor_ingestion
+      POSTGRES_USER: wrsensor
+      POSTGRES_PASSWORD: wrsensor
+    ports: ["5433:5432"]
+    volumes: [pg-timescale:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wrsensor -d wrsensor_ingestion"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ===== Servicios (requieren `mvn -o install -DskipTests` previo en services/) =====
+  sensor-registry:
+    build: ./services/sensor-registry
+    ports: ["8080:8080"]
+    environment:
+      R2DBC_URL: r2dbc:postgresql://postgres-metadata:5432/wrsensor
+      R2DBC_USER: wrsensor
+      R2DBC_PASS: wrsensor
+      RABBIT_HOST: rabbitmq
+      RABBIT_PORT: 5672
+      RABBIT_USER: wrsensor
+      RABBIT_PASS: wrsensor
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-wrsensor-dev-secret-2026-no-usar-en-prod}
+    depends_on:
+      postgres-metadata: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  data-simulator:
+    build: ./services/data-simulator
+    ports: ["8081:8081"]
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: wrsensor
+      SPRING_RABBITMQ_PASSWORD: wrsensor
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      sensor-registry: { condition: service_started }
+
+  ingestion-service:
+    build: ./services/ingestion-service
+    environment:
+      INGESTION_R2DBC_URL: r2dbc:postgresql://timescaledb:5432/wrsensor_ingestion
+      R2DBC_USER: wrsensor
+      R2DBC_PASS: wrsensor
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: wrsensor
+      SPRING_RABBITMQ_PASSWORD: wrsensor
+      REGISTRY_URL: http://sensor-registry:8080
+      REGISTRY_AUTH_EMAIL: viewer@wrsensor.local
+      REGISTRY_AUTH_PASSWORD: Viewer123!
+    depends_on:
+      timescaledb: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      sensor-registry: { condition: service_started }
+
+  alerting-service:
+    build: ./services/alerting-service
+    ports: ["8083:8083"]
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: wrsensor
+      SPRING_RABBITMQ_PASSWORD: wrsensor
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+
+  query-api:
+    build: ./services/query-api
+    ports: ["8082:8082"]
+    environment:
+      QUERY_R2DBC_URL: r2dbc:postgresql://timescaledb:5432/wrsensor_ingestion
+      R2DBC_USER: wrsensor
+      R2DBC_PASS: wrsensor
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: wrsensor
+      SPRING_RABBITMQ_PASSWORD: wrsensor
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-wrsensor-dev-secret-2026-no-usar-en-prod}
+    depends_on:
+      timescaledb: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+volumes:
+  pg-metadata:
+  pg-timescale:

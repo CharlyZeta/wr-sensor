@@ -1,0 +1,77 @@
+package com.wrsensor.queryapi.infrastructure.adapter.out.store;
+
+import com.wrsensor.queryapi.application.port.LecturasPort;
+import com.wrsensor.queryapi.domain.LecturaConsulta;
+import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
+/**
+ * Adapter out (R2DBC): consulta de la hypertable `lectura` (BR-001). Timestamps
+ * bindeados como OffsetDateTime UTC (columna timestamptz).
+ */
+@Component
+public class R2dbcLecturasPort implements LecturasPort {
+
+    private static final String LISTAR = """
+            SELECT sensor_id, ts, valor, unidad_medida, severidad
+            FROM lectura
+            WHERE sensor_id = $1 AND ts >= $2 AND ts <= $3
+              AND ($4::timestamptz IS NULL OR ts < $4)
+            ORDER BY ts DESC
+            LIMIT $5
+            """;
+
+    private static final String ULTIMA = """
+            SELECT sensor_id, ts, valor, unidad_medida, severidad
+            FROM lectura
+            WHERE sensor_id = $1
+            ORDER BY ts DESC
+            LIMIT 1
+            """;
+
+    private final DatabaseClient db;
+
+    public R2dbcLecturasPort(DatabaseClient db) {
+        this.db = db;
+    }
+
+    @Override
+    public Flux<LecturaConsulta> listar(UUID sensorId, Instant desde, Instant hasta,
+                                        Instant afterTs, int limit) {
+        DatabaseClient.GenericExecuteSpec spec = db.sql(LISTAR)
+                .bind(0, sensorId)
+                .bind(1, OffsetDateTime.ofInstant(desde, ZoneOffset.UTC))
+                .bind(2, OffsetDateTime.ofInstant(hasta, ZoneOffset.UTC))
+                .bind(4, limit);
+        spec = afterTs == null
+                ? spec.bindNull(3, OffsetDateTime.class)
+                : spec.bind(3, OffsetDateTime.ofInstant(afterTs, ZoneOffset.UTC));
+        return spec.map((row, meta) -> mapRow(sensorId, row.get("ts", OffsetDateTime.class).toInstant(),
+                        (BigDecimal) row.get("valor"), row.get("unidad_medida", String.class),
+                        row.get("severidad", String.class)))
+                .all();
+    }
+
+    @Override
+    public Mono<LecturaConsulta> ultima(UUID sensorId) {
+        return db.sql(ULTIMA)
+                .bind(0, sensorId)
+                .map((row, meta) -> mapRow(sensorId, row.get("ts", OffsetDateTime.class).toInstant(),
+                        (BigDecimal) row.get("valor"), row.get("unidad_medida", String.class),
+                        row.get("severidad", String.class)))
+                .one();
+    }
+
+    private static LecturaConsulta mapRow(UUID sensorId, Instant ts, BigDecimal valor,
+                                          String unidad, String severidad) {
+        return new LecturaConsulta(sensorId, ts, valor, unidad, severidad);
+    }
+}

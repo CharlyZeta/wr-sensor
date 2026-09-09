@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: sensor-registry
+  r2dbc:
+    url: ${R2DBC_URL:r2dbc:postgresql://localhost:5432/wrsensor}
+    username: ${R2DBC_USER:wrsensor}
+    password: ${R2DBC_PASS:wrsensor}
+    pool:
+      enabled: true
+      initial-size: 2
+      max-size: 10
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:guest}
+    password: ${RABBIT_PASS:guest}
+  jackson:
+    deserialization:
+      use-big-decimal-for-floats: true
+      # FEAT-0004 (BR-004/AC-009): rechazar campos desconocidos en bodies (identidad
+      # inmutable). Cualquier propiedad no mapeada → HttpMessageNotReadableException
+      # → GlobalErrorHandler → 400 SENSOR_INVALID_REQUEST.
+      fail-on-unknown-properties: true
+
+messaging:
+  sensor-created:
+    exchange: sensor.created
+    routing-key-prefix: sensor.created.
+
+auth:
+  jwt:
+    # FEAT-0006 BR-003: secret HS256. Default DEV (no seguro) — en entornos reales
+    # setear AUTH_JWT_SECRET.
+    secret: ${AUTH_JWT_SECRET:wrsensor-dev-secret-2026-no-usar-en-prod}
+    expiration-seconds: 3600

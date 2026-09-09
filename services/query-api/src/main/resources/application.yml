@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: query-api
+  r2dbc:
+    url: ${QUERY_R2DBC_URL:r2dbc:postgresql://localhost:5433/wrsensor_ingestion}
+    username: ${R2DBC_USER:wrsensor}
+    password: ${R2DBC_PASS:wrsensor}
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:guest}
+    password: ${RABBIT_PASS:guest}
+
+query:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:wrsensor-dev-secret-2026-no-usar-en-prod}
+  lecturas:
+    exchange: sensor.lecturas
+    queue: query.sensor.lecturas
+
+logging:
+  level:
+    com.wrsensor.queryapi: INFO
