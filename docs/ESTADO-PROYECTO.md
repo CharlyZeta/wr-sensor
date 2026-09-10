@@ -139,6 +139,20 @@ preservada.
 | `DeactivateSensorServiceTest` | 3 ✅ | BR-002/004/005 (404, UPDATE INACTIVO, no-op idempotente) |
 
 **Suite `sensor-registry` actual (2026-09-09): 89 unit/assert + 34 ITs = 123 verdes.**
+### 2h. `FIX-0002` (RESOLVED 2026-09-10) — parser de `sensor.alertas` perdía datos
+`AlertasRabbitConsumer.parseEvento` construía el `EventoAlerta` con
+`valorLectura = BigDecimal.ONE` y `cruceHisteresis = false` **hardcodeados**
+(parser incompleto de FEAT-0012). Fix: parseo fiel de ambos campos del payload
+FEAT-0011 (escala preservada; `cruceHisteresis` ausente → `false` por
+compatibilidad) manteniendo la validación (payload inválido → DLQ).
+
+| Suite | Tests | Cubre |
+|---|---|---|
+| `FIX0002AcTest` | 3 ✅ | AC-001 (valor 7.77 real), AC-002 (cruce fiel/ausente), AC-003 (rechazo → DLQ) |
+| `FIX0002MainFlowIT` | 1 ✅ | Reproducción e2e con RabbitMQ real (payload real → notificación; inválido → DLQ) |
+
+Regresión `alerting-service`: 10 unit + 2 ITs = 12 verdes. Audit:
+`.sdd/runs/FIX-0002-20260910-164923.md`.
 
 ---
 
@@ -189,4 +203,13 @@ JAVA_HOME="/c/Program Files/Amazon Corretto/jdk25.0.3_9" \
 
 > Los ITs necesitan Docker Desktop corriendo (Testcontainers: postgres + rabbitmq).
 
+### 3d. Backlog de mejoras EN ESPERA (sin ejecutar)
+Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idempotencia-ingestion.md`,
+`FIX-0004-validacion-rango-fisico.md`, `FIX-0005-gateway-rate-limiting.md`,
+`FIX-0006-particionamiento-consumers.md`, `FIX-0007-circuit-breaker.md` (todos DRAFT/GATE).
+**Estado: aguardando la orden de ejecución del humano** (no se procesan todavía).
 
+> Nota de gobernanza: existe **colisión de ID** entre `contracts/FIX-0002.md` (este work
+> item, RESOLVED) y `docs/FIX-0002-schema-versionado-lecturas.md` (backlog). Al recibir
+> la orden de ejecución, el primer paso del Gate será renumerar la serie del backlog
+> (p. ej. FIX-0008+) antes de crear su contract en `contracts/`.
