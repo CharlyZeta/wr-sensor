@@ -107,22 +107,28 @@ public class AlertasRabbitConsumer {
     // parse payload FEAT-0011: sensorId,timestamp,valorLectura,severidadAnterior,severidadNueva,cruceHisteresis
     private static final Pattern P_SENSOR = Pattern.compile("\"sensorId\":\"([0-9a-fA-F-]{36})\"");
     private static final Pattern P_TS = Pattern.compile("\"timestamp\":\"([^\"]+)\"");
+    private static final Pattern P_VALOR = Pattern.compile("\"valorLectura\":(-?\\d+(?:\\.\\d+)?)");
     private static final Pattern P_ANTERIOR = Pattern.compile("\"severidadAnterior\":\"([A-Z_]+)\"");
     private static final Pattern P_NUEVA = Pattern.compile("\"severidadNueva\":\"([A-Z_]+)\"");
+    private static final Pattern P_CRUCE = Pattern.compile("\"cruceHisteresis\":(true|false)");
 
     public static EventoAlerta parseEvento(byte[] body) {
         String json = new String(body, StandardCharsets.UTF_8);
         Matcher s = P_SENSOR.matcher(json);
         Matcher t = P_TS.matcher(json);
+        Matcher v = P_VALOR.matcher(json);
         Matcher a = P_ANTERIOR.matcher(json);
         Matcher n = P_NUEVA.matcher(json);
-        if (!s.find() || !t.find() || !a.find() || !n.find()) {
+        if (!s.find() || !t.find() || !v.find() || !a.find() || !n.find()) {
             throw new IllegalArgumentException("payload incompleto");
         }
         UUID id = UUID.fromString(s.group(1));
         Instant ts = Instant.parse(t.group(1));
+        BigDecimal valor = new BigDecimal(v.group(1)); // FIX-0002: valor real del payload (no BigDecimal.ONE)
         Severidad anterior = Severidad.valueOf(a.group(1));
         Severidad nueva = Severidad.valueOf(n.group(1));
-        return new EventoAlerta(id, ts, BigDecimal.ONE, anterior, nueva, false);
+        Matcher c = P_CRUCE.matcher(json);
+        boolean cruceHisteresis = c.find() && Boolean.parseBoolean(c.group(1)); // FIX-0002: fiel; ausente → false (compatibilidad)
+        return new EventoAlerta(id, ts, valor, anterior, nueva, cruceHisteresis);
     }
 }
