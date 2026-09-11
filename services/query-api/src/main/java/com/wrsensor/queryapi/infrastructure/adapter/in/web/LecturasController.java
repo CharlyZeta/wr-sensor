@@ -57,7 +57,7 @@ public class LecturasController {
     }
 
     private static LecturaDto toDto(LecturaConsulta l) {
-        return new LecturaDto(l.timestamp(), l.valor(), l.unidadMedida(), l.severidad());
+        return new LecturaDto(l.timestamp(), l.valor(), l.unidadMedida(), l.severidad(), l.calidad());
     }
 
     private static UUID parseUuid(String id) {
@@ -86,5 +86,6 @@ public class LecturasController {
 
     public record HistoricoResponse(List<LecturaDto> items, String nextCursor) {}
 
-    public record LecturaDto(Instant timestamp, BigDecimal valor, String unidadMedida, String severidad) {}
+    public record LecturaDto(Instant timestamp, BigDecimal valor, String unidadMedida, String severidad, String calidad) {}
 }
+

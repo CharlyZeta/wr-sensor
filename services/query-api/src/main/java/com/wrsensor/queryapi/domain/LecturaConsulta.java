@@ -10,6 +10,8 @@ public record LecturaConsulta(
         Instant timestamp,
         BigDecimal valor,
         String unidadMedida,
-        String severidad
+        String severidad,   // FIX-0004: puede ser null (lectura ERROR_SENSOR no evaluada)
+        String calidad      // FIX-0004: OK | ERROR_SENSOR
 ) {
 }
+

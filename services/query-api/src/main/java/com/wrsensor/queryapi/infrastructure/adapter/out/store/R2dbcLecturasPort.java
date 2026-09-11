@@ -21,7 +21,7 @@ import java.util.UUID;
 public class R2dbcLecturasPort implements LecturasPort {
 
     private static final String LISTAR = """
-            SELECT sensor_id, ts, valor, unidad_medida, severidad
+            SELECT sensor_id, ts, valor, unidad_medida, severidad, calidad
             FROM lectura
             WHERE sensor_id = $1 AND ts >= $2 AND ts <= $3
               AND ($4::timestamptz IS NULL OR ts < $4)
@@ -30,7 +30,7 @@ public class R2dbcLecturasPort implements LecturasPort {
             """;
 
     private static final String ULTIMA = """
-            SELECT sensor_id, ts, valor, unidad_medida, severidad
+            SELECT sensor_id, ts, valor, unidad_medida, severidad, calidad
             FROM lectura
             WHERE sensor_id = $1
             ORDER BY ts DESC
@@ -56,7 +56,7 @@ public class R2dbcLecturasPort implements LecturasPort {
                 : spec.bind(3, OffsetDateTime.ofInstant(afterTs, ZoneOffset.UTC));
         return spec.map((row, meta) -> mapRow(sensorId, row.get("ts", OffsetDateTime.class).toInstant(),
                         (BigDecimal) row.get("valor"), row.get("unidad_medida", String.class),
-                        row.get("severidad", String.class)))
+                        str(row, "severidad"), str(row, "calidad")))
                 .all();
     }
 
@@ -66,12 +66,20 @@ public class R2dbcLecturasPort implements LecturasPort {
                 .bind(0, sensorId)
                 .map((row, meta) -> mapRow(sensorId, row.get("ts", OffsetDateTime.class).toInstant(),
                         (BigDecimal) row.get("valor"), row.get("unidad_medida", String.class),
-                        row.get("severidad", String.class)))
+                        str(row, "severidad"), str(row, "calidad")))
                 .one();
     }
 
     private static LecturaConsulta mapRow(UUID sensorId, Instant ts, BigDecimal valor,
-                                          String unidad, String severidad) {
-        return new LecturaConsulta(sensorId, ts, valor, unidad, severidad);
+                                          String unidad, String severidad, String calidad) {
+        return new LecturaConsulta(sensorId, ts, valor, unidad, severidad, calidad);
+    }
+
+    /** FIX-0004: `severidad` puede ser NULL (lectura ERROR_SENSOR) — get tipado lanza NPE. */
+    private static String str(io.r2dbc.spi.Row row, String col) {
+        Object v = row.get(col);
+        return v == null ? null : v.toString();
     }
 }
+
+

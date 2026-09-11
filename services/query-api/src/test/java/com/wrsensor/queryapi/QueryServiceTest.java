@@ -34,7 +34,7 @@ class QueryServiceTest {
         List<LecturaConsulta> out = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             out.add(new LecturaConsulta(ID, BASE.plusSeconds(i), new BigDecimal(i + 1),
-                    "METROS", "NORMAL"));
+                    "METROS", "NORMAL", "OK"));
         }
         return out;
     }
@@ -139,3 +139,4 @@ class QueryServiceTest {
                 .verify();
     }
 }
+

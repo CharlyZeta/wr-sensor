@@ -112,6 +112,8 @@ public class LecturasRabbitConsumer {
     private static final Pattern P_VALOR = Pattern.compile("\"valor\":(-?\\d+(?:\\.\\d+)?)");
     private static final Pattern P_UNIDAD = Pattern.compile("\"unidadMedida\":\"([A-Z_]+)\"");
     private static final Pattern P_EVENT = Pattern.compile("\"eventId\":\"([^\"]+)\""); // FIX-0003 BR-001/BR-010 (opcional)
+    // FIX-0004 BR-007: marca de calidad del emisor (calidad.estado) — opcional, formato futuro
+    private static final Pattern P_CALIDAD = Pattern.compile("\"calidad\"\\s*:\\s*\\{[^}]*\"estado\"\\s*:\\s*\"([A-Z_]+)\"");
 
     public static LecturaEntrada parseLectura(byte[] body) {
         String json = new String(body, StandardCharsets.UTF_8);
@@ -128,7 +130,9 @@ public class LecturasRabbitConsumer {
             BigDecimal valor = new BigDecimal(v.group(1));
             Matcher ev = P_EVENT.matcher(json);
             String eventId = ev.find() ? ev.group(1) : null; // FIX-0003 BR-001/BR-010 (opcional)
-            return new LecturaEntrada(id, ts, valor, u.group(1), eventId);
+            Matcher cal = P_CALIDAD.matcher(json);
+            String calidadEmisor = cal.find() ? cal.group(1) : null; // FIX-0004 BR-007 (opcional)
+            return new LecturaEntrada(id, ts, valor, u.group(1), eventId, calidadEmisor);
         } catch (RechazoLecturaException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -137,5 +141,6 @@ public class LecturasRabbitConsumer {
         }
     }
 }
+
 
 

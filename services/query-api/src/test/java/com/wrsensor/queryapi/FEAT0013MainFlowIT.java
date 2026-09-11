@@ -108,8 +108,12 @@ class FEAT0013MainFlowIT {
         io.r2dbc.spi.ConnectionFactory cf = new io.r2dbc.postgresql.PostgresqlConnectionFactory(cfg);
         DatabaseClient db = DatabaseClient.create(cf);
         db.sql("CREATE TABLE IF NOT EXISTS lectura (sensor_id UUID NOT NULL, ts TIMESTAMPTZ NOT NULL, "
-                + "valor NUMERIC(12,2) NOT NULL, unidad_medida VARCHAR(32) NOT NULL, severidad VARCHAR(16) NOT NULL)")
+                + "valor NUMERIC(12,2) NOT NULL, unidad_medida VARCHAR(32) NOT NULL, severidad VARCHAR(16), "
+                + "calidad VARCHAR(16) NOT NULL DEFAULT 'OK')")
                 .fetch().rowsUpdated()
+                .then(db.sql("ALTER TABLE lectura ADD COLUMN IF NOT EXISTS calidad VARCHAR(16) NOT NULL DEFAULT 'OK'")
+                        .fetch().rowsUpdated())
+                .then(db.sql("ALTER TABLE lectura ALTER COLUMN severidad DROP NOT NULL").fetch().rowsUpdated())
                 .then(db.sql("DELETE FROM lectura").fetch().rowsUpdated())
                 .then()
                 .block();
@@ -234,4 +238,5 @@ class FEAT0013MainFlowIT {
         sub.dispose();
     }
 }
+
 

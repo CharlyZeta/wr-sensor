@@ -2,9 +2,12 @@ package com.wrsensor.ingestion.infrastructure.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.math.BigDecimal;
+import java.util.Map;
+
 /**
- * Configuracion de ingestion (application.yml) — FEAT-0011 BR-005/BR-006 y
- * FIX-0003 BR-004..BR-008 (outbox).
+ * Configuracion de ingestion (application.yml) — FEAT-0011 BR-005/BR-006,
+ * FIX-0003 (outbox) y FIX-0004 (rango fisico).
  */
 @ConfigurationProperties(prefix = "ingestion")
 public record IngestionProperties(
@@ -13,7 +16,8 @@ public record IngestionProperties(
         Lecturas lecturas,
         Alertas alertas,
         Messaging messaging,
-        Outbox outbox
+        Outbox outbox,
+        RangoFisico rangoFisico
 ) {
 
     public record Registry(String baseUrl, Auth auth) {
@@ -28,7 +32,6 @@ public record IngestionProperties(
 
     /**
      * Parametros del publisher de outbox (nunca hardcodeados, BR-007).
-     * Constructor compacto: aplica defaults cuando la config no los provee.
      */
     public record Outbox(Long intervaloMs, Integer tamanoLote, Integer maxIntentos,
                          Long backoffInicialMs, Double multiplicador, Long backoffMaxMs,
@@ -43,5 +46,14 @@ public record IngestionProperties(
             backoffMaxMs = backoffMaxMs == null ? 30_000L : backoffMaxMs;
             retencionDias = retencionDias == null ? 90 : retencionDias;
         }
+    }
+
+    /**
+     * Rangos fisicos (FIX-0004 BR-001/BR-002): globales por unidad de medida y
+     * overrides por sensor (clave = sensorId o codigo). Nunca hardcodeados.
+     */
+    public record RangoFisico(Map<String, Rango> unidades, Map<String, Rango> overrides) {
+
+        public record Rango(BigDecimal min, BigDecimal max) {}
     }
 }

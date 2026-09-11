@@ -31,6 +31,16 @@ ingestion:
   messaging:
     retry-max-attempts: 3
     dead-letter-exchange: sensor.lecturas.dlx
+  # FIX-0004: rangos fisicos por unidad (nunca hardcodeados; BR-001/BR-002)
+  # Overrides por sensor: claves = sensorId (UUID) o codigo.
+  rango-fisico:
+    unidades:
+      METROS:      { min: -1.0,  max: 15.0 }
+      CENTIMETROS: { min: -100,  max: 1500 }
+    # Overrides opcionales (si se omiten, rige el global de la unidad):
+    # overrides:
+    #   PARANA-RECONQUISTA: { min: 0.0, max: 8.0 }
+
   # FIX-0003: publisher de outbox (nunca hardcodeado; BR-004..BR-008)
   outbox:
     intervalo-ms: 1000
@@ -44,4 +54,6 @@ ingestion:
 logging:
   level:
     com.wrsensor.ingestion: INFO
+
+
 

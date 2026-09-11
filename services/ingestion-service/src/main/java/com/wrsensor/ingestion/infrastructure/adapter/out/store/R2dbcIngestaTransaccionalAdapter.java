@@ -27,8 +27,8 @@ public class R2dbcIngestaTransaccionalAdapter implements IngestaTransaccionalPor
             """;
 
     private static final String INSERT_LECTURA = """
-            INSERT INTO lectura (sensor_id, ts, valor, unidad_medida, severidad)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO lectura (sensor_id, ts, valor, unidad_medida, severidad, calidad)
+            VALUES ($1, $2, $3, $4, $5, $6)
             """;
 
     private static final String INSERT_OUTBOX = """
@@ -55,12 +55,16 @@ public class R2dbcIngestaTransaccionalAdapter implements IngestaTransaccionalPor
                     if (filas == 0) {
                         return Mono.just(new Resultado(false)); // ya procesada (BR-002)
                     }
-                    return db.sql(INSERT_LECTURA)
+                    DatabaseClient.GenericExecuteSpec insert = db.sql(INSERT_LECTURA)
                             .bind(0, lectura.sensorId())
                             .bind(1, ts(lectura))
                             .bind(2, lectura.valor())
                             .bind(3, lectura.unidadMedida())
-                            .bind(4, lectura.severidad().name())
+                            .bind(5, lectura.calidad().name());
+                    insert = lectura.severidad() == null
+                            ? insert.bindNull(4, String.class)   // FIX-0004: ERROR_SENSOR no evaluada
+                            : insert.bind(4, lectura.severidad().name());
+                    return insert
                             .fetch().rowsUpdated()
                             .then(outbox == null
                                     ? Mono.empty()

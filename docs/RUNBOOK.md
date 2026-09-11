@@ -41,10 +41,10 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 | 123 |
 | `data-simulator` | 13 | 1 | 14 |
-| `ingestion-service` | 13 | 8 | 21 |
+| `ingestion-service` | 25 | 14 | 39 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 7 | 1 | 8 |
-| **Total** | **132** | **46** | **178** |
+| **Total** | **144** | **52** | **196** |
 
 ## 3. Credenciales y config dev
 
@@ -91,6 +91,7 @@ Flujo de prueba end-to-end manual:
   `contracts/[ID].md` → DRAFT/GATE → `sdd-gate`; APPROVED/LOOP → `sdd-loop`;
   RESOLVED → work item completo.
 - Auditoría de cada Loop: `.sdd/runs/FEAT-XXXX-<timestamp>.md` (Glass Box).
+
 
 
 

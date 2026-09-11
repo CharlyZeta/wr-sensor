@@ -4,6 +4,7 @@ import com.wrsensor.ingestion.application.port.IngestaTransaccionalPort;
 import com.wrsensor.ingestion.application.port.SensorConfigPort;
 import com.wrsensor.ingestion.application.service.ClaveIdempotencia;
 import com.wrsensor.ingestion.application.service.IngestorLecturas;
+import com.wrsensor.ingestion.domain.Calidad;
 import com.wrsensor.ingestion.domain.LecturaEntrada;
 import com.wrsensor.ingestion.domain.LecturaPersistida;
 import com.wrsensor.ingestion.domain.RechazoLecturaException;
@@ -50,7 +51,12 @@ class IngestorLecturasTest {
             new IngestionProperties.Lecturas("sensor.lecturas", "queue", "dlq", "dlx"),
             new IngestionProperties.Alertas("sensor.alertas"),
             new IngestionProperties.Messaging(3, "dlx"),
-            new IngestionProperties.Outbox(null, null, null, null, null, null, null));
+            new IngestionProperties.Outbox(null, null, null, null, null, null, null),
+            new IngestionProperties.RangoFisico(
+                    java.util.Map.of(
+                            "METROS", new IngestionProperties.RangoFisico.Rango(new BigDecimal("-1.0"), new BigDecimal("15.0")),
+                            "CENTIMETROS", new IngestionProperties.RangoFisico.Rango(new BigDecimal("-100"), new BigDecimal("1500"))),
+                    java.util.Map.of("SALADO-SANJUSTO", new IngestionProperties.RangoFisico.Rango(new BigDecimal("0.0"), new BigDecimal("8.0")))));
 
     private static final class FakeSensores implements SensorConfigPort {
         SensorInfo found = ACTIVO;
@@ -183,6 +189,114 @@ class IngestorLecturasTest {
                 .isEqualTo("abc-1");
     }
 
+    // ===== FIX-0004: rango fisico y calidad del dato =====
+
+    @Test
+    @DisplayName("FIX-0004 AC-001: valor dentro del rango fisico -> calidad OK y severidad evaluada")
+    void fix0004_ac001_dentroDeRango() {
+        H h = newH(ACTIVO);
+        StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "5.0")))
+                .assertNext(r -> {
+                    assertThat(r.calidad()).isEqualTo(Calidad.OK);
+                    assertThat(r.severidad()).isEqualTo(Severidad.NORMAL); // dentro de rangoNormal 4..6
+                })
+                .verifyComplete();
+        assertThat(h.store().filas.get(0).calidad()).isEqualTo(Calidad.OK);
+    }
+
+    @Test
+    @DisplayName("FIX-0004 AC-002 / BR-003: valor fuera de rango fisico -> ERROR_SENSOR, severidad null y sin outbox")
+    void fix0004_ac002_errorSensor() {
+        H h = newH(ACTIVO);
+        StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "-50.0")))
+                .assertNext(r -> {
+                    assertThat(r.calidad()).isEqualTo(Calidad.ERROR_SENSOR);
+                    assertThat(r.severidad()).isNull();
+                    assertThat(r.eventoEncolado()).isFalse();
+                })
+                .verifyComplete();
+        assertThat(h.store().filas).hasSize(1);
+        assertThat(h.store().filas.get(0).severidad()).as("no evaluada").isNull();
+        assertThat(h.store().outboxes).as("nunca encola alerta").isEmpty();
+    }
+
+    @Test
+    @DisplayName("FIX-0004 AC-003 / BR-005: la lectura ERROR_SENSOR no altera la ultima severidad conocida")
+    void fix0004_ac003_estadoNoAlterado() {
+        H h = newH(ACTIVO);
+        h.ingestor().procesar(lectura(ID_A, "5.0")).block();
+        h.ingestor().procesar(lectura(ID_A, "-50.0")).block();
+
+        StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "7.0")))
+                .assertNext(r -> assertThat(r.eventoEncolado())
+                        .as("se evalua contra NORMAL -> WARNING").isTrue())
+                .verifyComplete();
+        assertThat(h.store().outboxes).hasSize(1);
+        assertThat(h.store().outboxes.get(0).payload()).contains("\"severidadAnterior\":\"NORMAL\"");
+    }
+
+    @Test
+    @DisplayName("FIX-0004 AC-004 / BR-002: el override por codigo es mas restrictivo que el global")
+    void fix0004_ac004_override() {
+        SensorInfo conOverride = new SensorInfo(ID_A, "SALADO-SANJUSTO", "ACTIVO", "METROS",
+                new SensorInfo.Rango(new BigDecimal("4"), new BigDecimal("6")),
+                new SensorInfo.Rango(new BigDecimal("2"), new BigDecimal("8")),
+                new SensorInfo.Rango(new BigDecimal("0"), new BigDecimal("10")));
+        H h = newH(conOverride);
+        StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "9.5")))
+                .assertNext(r -> assertThat(r.calidad()).isEqualTo(Calidad.ERROR_SENSOR))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("FIX-0004 AC-005 / BR-006: sensor en CENTIMETROS usa el rango de centimetros")
+    void fix0004_ac005_centimetros() {
+        SensorInfo cm = new SensorInfo(ID_A, "PARANA-RECONQUISTA", "ACTIVO", "CENTIMETROS",
+                new SensorInfo.Rango(new BigDecimal("400"), new BigDecimal("600")),
+                new SensorInfo.Rango(new BigDecimal("200"), new BigDecimal("800")),
+                new SensorInfo.Rango(new BigDecimal("0"), new BigDecimal("1000")));
+        H h = newH(cm);
+        StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "340")))
+                .assertNext(r -> assertThat(r.calidad()).isEqualTo(Calidad.OK))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("FIX-0004 AC-006 / BR-007: marca de calidad del emisor excluye aunque el valor sea plausible")
+    void fix0004_ac006_calidadEmisor() {
+        H h = newH(ACTIVO);
+        LecturaEntrada marcada = new LecturaEntrada(ID_A, Instant.now(), new BigDecimal("5.0"),
+                "METROS", null, "ERROR_SENSOR");
+        StepVerifier.create(h.ingestor().procesar(marcada))
+                .assertNext(r -> {
+                    assertThat(r.calidad()).isEqualTo(Calidad.ERROR_SENSOR);
+                    assertThat(r.severidad()).isNull();
+                    assertThat(r.eventoEncolado()).isFalse();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("FIX-0004 AC-007 / BR-008: se emite log WARN con el sensorId y el motivo")
+    void fix0004_ac007_logWarn() {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(IngestorLecturas.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+                new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            H h = newH(ACTIVO);
+            h.ingestor().procesar(lectura(ID_A, "-50.0")).block();
+            assertThat(appender.list)
+                    .anyMatch(e -> e.getLevel() == ch.qos.logback.classic.Level.WARN
+                            && e.getFormattedMessage().contains(ID_A.toString())
+                            && e.getFormattedMessage().contains("ERROR_SENSOR"));
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
     // ===== AF (FEAT-0011) =====
 
     @Test
@@ -242,3 +356,6 @@ class IngestorLecturasTest {
         }
     }
 }
+
+
+

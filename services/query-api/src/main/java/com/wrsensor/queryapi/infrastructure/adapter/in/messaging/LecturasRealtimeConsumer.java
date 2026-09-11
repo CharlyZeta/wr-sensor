@@ -100,6 +100,7 @@ public class LecturasRealtimeConsumer {
             throw new IllegalArgumentException("payload incompleto");
         }
         return new LecturaConsulta(UUID.fromString(s.group(1)), Instant.parse(t.group(1)),
-                new BigDecimal(v.group(1)), u.group(1), null);
+                new BigDecimal(v.group(1)), u.group(1), null, null); // severidad/calidad desconocidas en el stream realtime
     }
 }
+

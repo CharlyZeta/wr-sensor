@@ -27,6 +27,7 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | FEAT-0013 | `query-api` | 2026-09-09 | 2026-09-09 | ✅ 23/23 | Cursor (2) · Service (5) · IT e2e (1) |
 | FIX-0002 | Parser de `sensor.alertas` perdía `valorLectura`/`cruceHisteresis` | 2026-09-09 | 2026-09-10 | ✅ 4/4 | AC (3) · IT reproducción (1) |
 | FIX-0003 | Outbox + idempotencia en `ingestion-service` | 2026-09-10 | 2026-09-11 | ✅ 19/19 | Unit (10+3) · IT e2e (7) |
+| FIX-0004 | Rango físico y calidad del dato (`ERROR_SENSOR`) | 2026-09-11 | 2026-09-11 | ✅ 16/16 | Unit (5+17) · IT e2e (6) |
 
 > FEAT-0001: completado en sesiones previas (bitácora). FEAT-0002 quedó
 > interrumpido en Main Flow ⏳ y se reanudó/cerró el 2026-09-09.
@@ -37,11 +38,11 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 (6 ITs) | BR/AC/AF por contract + e2e FEAT-0001..0006 |
 | `data-simulator` | 13 | 1 | `ValorSinteticoTest` 3 · `LecturaJsonTest` 1 · `SimuladorServiceTest` 9 |
-| `ingestion-service` | 13 | 8 | `SeveridadEvaluadorTest` 3 · `IngestorLecturasTest` 10 · ITs (FEAT-0011 + FIX-0003) |
+| `ingestion-service` | 25 | 14 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · ITs (FEAT-0011 + FIX-0003 + FIX-0004) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
 | `query-api` | 7 | 1 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 |
 
-**Total: 132 unit/assert + 46 ITs = 178 verdes** (JUnit 5, AssertJ, StepVerifier,
+**Total: 144 unit/assert + 52 ITs = 196 verdes** (JUnit 5, AssertJ, StepVerifier,
 WebTestClient, Testcontainers — Maven offline).
 
 ## Fixes de infraestructura (bug reales, documentados en audits)
@@ -59,6 +60,10 @@ WebTestClient, Testcontainers — Maven offline).
    (eventId o natural), transacción única lectura+dedupe+outbox y poller reactivo
    (claim `FOR UPDATE SKIP LOCKED`, orden explícito por `id`, backoff, FALLIDO con
    evidencia, purga por retención).
+7. **Lecturas físicamente imposibles** (FIX-0004): rango físico por unidad con override
+   por sensor, `calidad` (`OK`/`ERROR_SENSOR`) y `severidad` nullable; las lecturas
+   erróneas se persisten pero no evalúan severidad ni alertan. Bug derivado corregido:
+   `row.get(col, Tipo.class)` con NULL en query-api.
 
 ## Pendientes (roadmap v1)
 
@@ -66,6 +71,7 @@ WebTestClient, Testcontainers — Maven offline).
 Frontend React → `docker-compose.yml` + multi-módulo Maven → datos semilla/dashboard.
 Servicios cerrados a la fecha: 4 (sensor-registry, data-simulator, ingestion,
 alerting).
+
 
 
 

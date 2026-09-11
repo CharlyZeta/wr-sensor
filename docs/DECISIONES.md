@@ -79,3 +79,21 @@ aproximación temporal sobre el stream de cambios.
   (verificado con sonda que el entorno sí las soporta). Documentado en los audits.
 - Ajustes menores de spec durante Loops (AC-009 FEAT-0004) quedaron anotados en los
   Contracts y audits.
+
+## ADR-0013 · Outbox + idempotencia en ingestion (FIX-0003)
+**Contexto:** el consumo persistía y publicaba en línea (sin transacción): redelivery duplicaba
+lecturas y una caída entre commit y publicación perdía la alerta. **Decisión (HO-Gate
+2026-09-10):** clave de idempotencia `eventId`-o-natural `(sensorId, timestamp)` para no
+depender del backlog de schema; transacción única lectura + dedupe + outbox
+(`R2dbcTransactionManager`/`TransactionalOperator`); **poller reactivo** (sin CDC/Kafka) con
+claim `FOR UPDATE SKIP LOCKED`, orden explícito por `id`, backoff configurable,
+`FALLIDO + ultimo_error` al agotar y purga por retención (90 días). Garantía declarada:
+**at-least-once**; el dedupe en `alerting-service` queda como contrato futuro.
+
+## ADR-0014 · Rango físico y calidad del dato (FIX-0004)
+**Contexto:** cualquier valor numérico se persistía y podía disparar alertas (alturas
+negativas o imposibles). **Decisión (HO-Gate 2026-09-11):** rangos físicos **configurados en
+ingestion-service** (global por unidad + override por sensor), lectura fuera de rango o
+marcada como `ERROR_SENSOR` por el emisor → se persiste con `calidad = ERROR_SENSOR` y
+`severidad NULL` (columna nullable), **sin** evaluar bandas ni encolar alerta, y sin alterar
+la última severidad conocida; `query-api` expone `calidad` y tolera severidad nula.
