@@ -26,6 +26,7 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | FEAT-0012 | `alerting-service` | 2026-09-09 | 2026-09-09 | ✅ 22/22 | Gestor (6) · Parse (1) · IT WS (1) |
 | FEAT-0013 | `query-api` | 2026-09-09 | 2026-09-09 | ✅ 23/23 | Cursor (2) · Service (5) · IT e2e (1) |
 | FIX-0002 | Parser de `sensor.alertas` perdía `valorLectura`/`cruceHisteresis` | 2026-09-09 | 2026-09-10 | ✅ 4/4 | AC (3) · IT reproducción (1) |
+| FIX-0003 | Outbox + idempotencia en `ingestion-service` | 2026-09-10 | 2026-09-11 | ✅ 19/19 | Unit (10+3) · IT e2e (7) |
 
 > FEAT-0001: completado en sesiones previas (bitácora). FEAT-0002 quedó
 > interrumpido en Main Flow ⏳ y se reanudó/cerró el 2026-09-09.
@@ -36,11 +37,11 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 (6 ITs) | BR/AC/AF por contract + e2e FEAT-0001..0006 |
 | `data-simulator` | 13 | 1 | `ValorSinteticoTest` 3 · `LecturaJsonTest` 1 · `SimuladorServiceTest` 9 |
-| `ingestion-service` | 10 | 1 | `SeveridadEvaluadorTest` 3 · `IngestorLecturasTest` 7 |
+| `ingestion-service` | 13 | 8 | `SeveridadEvaluadorTest` 3 · `IngestorLecturasTest` 10 · ITs (FEAT-0011 + FIX-0003) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
 | `query-api` | 7 | 1 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 |
 
-**Total: 129 unit/assert + 39 ITs = 168 verdes** (JUnit 5, AssertJ, StepVerifier,
+**Total: 132 unit/assert + 46 ITs = 178 verdes** (JUnit 5, AssertJ, StepVerifier,
 WebTestClient, Testcontainers — Maven offline).
 
 ## Fixes de infraestructura (bug reales, documentados en audits)
@@ -54,6 +55,10 @@ WebTestClient, Testcontainers — Maven offline).
    `Mono.empty()`, nunca `Mono.just(null)`.
 5. **Parser incompleto de `sensor.alertas`** (FIX-0002): `valorLectura` y
    `cruceHisteresis` hardcodeados → parseo fiel del payload.
+6. **Duplicados y publicación no atómica en ingestion** (FIX-0003): dedupe por clave
+   (eventId o natural), transacción única lectura+dedupe+outbox y poller reactivo
+   (claim `FOR UPDATE SKIP LOCKED`, orden explícito por `id`, backoff, FALLIDO con
+   evidencia, purga por retención).
 
 ## Pendientes (roadmap v1)
 
@@ -61,5 +66,6 @@ WebTestClient, Testcontainers — Maven offline).
 Frontend React → `docker-compose.yml` + multi-módulo Maven → datos semilla/dashboard.
 Servicios cerrados a la fecha: 4 (sensor-registry, data-simulator, ingestion,
 alerting).
+
 
 

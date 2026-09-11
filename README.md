@@ -6,7 +6,7 @@ con **Spec-Driven Development Gate/Loop (SDD-GL)**. Cada funcionalidad nace como
 humana (HO-Gate) y luego un Loop autónomo de implementación + tests hasta
 `RESOLVED`.
 
-> Estado al **2026-09-09**: 12 Work Items cerrados (~80% del roadmap v1).
+> Estado al **2026-09-09**: 13 Work Items cerrados (~85% del roadmap v1).
 
 ---
 
@@ -93,6 +93,7 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FEAT-0012` | `alerting-service` | ✅ RESOLVED | 7 · IT 1 |
 | `FEAT-0013` | `query-api` | ✅ RESOLVED | 7 · IT 1 |
 | `FIX-0002` | Parser `sensor.alertas` (valorLectura/cruceHisteresis) | ✅ RESOLVED | 3 · IT 1 |
+| `FIX-0003` | Outbox + idempotencia en ingestion | ✅ RESOLVED | 13 · IT 8 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 14 · `ingestion-service`
 11 · `alerting-service` 8 → **156 tests** (JUnit 5; ITs con Testcontainers).
@@ -123,6 +124,7 @@ Credenciales dev (auth FEAT-0006): `admin@wrsensor.local` / `Admin123!` ·
 Frame **SDD-GL v0.3.0** instalado en el repo (protocolos EXPRESS/STRICT, Glass Box
 en `.sdd/runs/`, orquestadores `CLAUDE.md`/`AGENTS.md`, skills en `.agents/skills/`,
 presets y spec MCP en `mcp/`). Autor: [CharlyZeta/SDD-GL](https://github.com/CharlyZeta/SDD-GL).
+
 
 
 

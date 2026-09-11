@@ -1,6 +1,5 @@
 package com.wrsensor.ingestion.infrastructure.config;
 
-import com.wrsensor.ingestion.application.port.AlertaEventoPublisher;
 import com.wrsensor.ingestion.application.port.LecturaStore;
 import com.wrsensor.ingestion.application.port.SensorConfigPort;
 import com.wrsensor.ingestion.application.service.IngestorLecturas;
@@ -53,8 +52,17 @@ public class IngestionInfraConfig {
     }
 
     @Bean
-    IngestorLecturas ingestorLecturas(SensorConfigPort sensores, LecturaStore store,
-                                      AlertaEventoPublisher alertas, IngestionProperties props) {
-        return new IngestorLecturas(sensores, store, alertas, props);
+    org.springframework.transaction.reactive.TransactionalOperator transactionalOperator(
+            io.r2dbc.spi.ConnectionFactory connectionFactory) {
+        return org.springframework.transaction.reactive.TransactionalOperator.create(
+                new org.springframework.r2dbc.connection.R2dbcTransactionManager(connectionFactory));
+    }
+
+    @Bean
+    IngestorLecturas ingestorLecturas(SensorConfigPort sensores,
+                                      com.wrsensor.ingestion.application.port.IngestaTransaccionalPort store,
+                                      IngestionProperties props) {
+        return new IngestorLecturas(sensores, store, props);
     }
 }
+

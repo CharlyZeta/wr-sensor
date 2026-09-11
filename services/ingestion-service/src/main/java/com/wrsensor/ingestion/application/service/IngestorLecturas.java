@@ -1,7 +1,6 @@
 package com.wrsensor.ingestion.application.service;
 
-import com.wrsensor.ingestion.application.port.AlertaEventoPublisher;
-import com.wrsensor.ingestion.application.port.LecturaStore;
+import com.wrsensor.ingestion.application.port.IngestaTransaccionalPort;
 import com.wrsensor.ingestion.application.port.SensorConfigPort;
 import com.wrsensor.ingestion.domain.AlertaEvento;
 import com.wrsensor.ingestion.domain.LecturaEntrada;
@@ -21,30 +20,30 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Pipeline de ingestion (Main Flow FEAT-0011): validar ventana (AF-05) → resolver
- * sensor (AF-02/AF-04) → estado (AF-03) → evaluar severidad (BR-002) → persistir
- * (BR-003/BR-008) → publicar AlertaEvento si hay cambio de severidad (BR-004;
- * decision HO-Gate: evento simple, histéresis en FEAT-0012). Última severidad en
- * memoria (decision HO-Gate). Aplicacion sin Spring (ports inyectados).
+ * Pipeline de ingestion (Main Flow FEAT-0011, endurecido por FIX-0003):
+ * validar ventana (AF-05) → resolver sensor (AF-02/AF-04) → estado (AF-03) →
+ * evaluar severidad (BR-002) → **persistir de forma atómica** (lectura + dedupe +
+ * outbox opcional) por {@link IngestaTransaccionalPort}.
+ *
+ * <p>FIX-0003: ya **no** publica en RabbitMQ en el camino de consumo (BR-004); la
+ * entrega la hace el poller de outbox. El redelivery se descarta por clave de
+ * idempotencia (`ClaveIdempotencia`, BR-001/BR-002).
  */
 public class IngestorLecturas {
 
     private static final Logger log = LoggerFactory.getLogger(IngestorLecturas.class);
 
-    public record Resultado(UUID sensorId, Severidad severidad, boolean eventoPublicado) {}
+    public record Resultado(UUID sensorId, Severidad severidad, boolean eventoEncolado, boolean duplicado) {}
 
     private final SensorConfigPort sensores;
-    private final LecturaStore store;
-    private final AlertaEventoPublisher alertas;
+    private final IngestaTransaccionalPort store;
     private final IngestionProperties props;
     private final Map<UUID, Severidad> ultimaSeveridad = new ConcurrentHashMap<>();
-    private final Instant relojBase = Instant.now();
 
-    public IngestorLecturas(SensorConfigPort sensores, LecturaStore store,
-                            AlertaEventoPublisher alertas, IngestionProperties props) {
+    public IngestorLecturas(SensorConfigPort sensores, IngestaTransaccionalPort store,
+                            IngestionProperties props) {
         this.sensores = sensores;
         this.store = store;
-        this.alertas = alertas;
         this.props = props;
     }
 
@@ -60,7 +59,7 @@ public class IngestorLecturas {
             return sensores.findById(lectura.sensorId())
                     .switchIfEmpty(Mono.error(new RechazoLecturaException(
                             RechazoLecturaException.SENSOR_UNKNOWN, "sensor desconocido: " + lectura.sensorId())))
-                    .flatMap(sensor -> procesarConSensor(lectura, sensor, ahora));
+                    .flatMap(sensor -> procesarConSensor(lectura, sensor));
         });
     }
 
@@ -68,26 +67,35 @@ public class IngestorLecturas {
         return procesar(lectura, Instant.now());
     }
 
-    private Mono<Resultado> procesarConSensor(LecturaEntrada lectura, SensorInfo sensor, Instant ahora) {
+    private Mono<Resultado> procesarConSensor(LecturaEntrada lectura, SensorInfo sensor) {
         if ("INACTIVO".equalsIgnoreCase(sensor.estado())) {
             return Mono.error(new RechazoLecturaException(RechazoLecturaException.SENSOR_INACTIVE,
                     "sensor inactivo: " + sensor.codigo()));
         }
         Severidad severidad = SeveridadEvaluador.evaluar(sensor, lectura.valor());
         Severidad anterior = ultimaSeveridad.get(lectura.sensorId());
+        boolean cambio = anterior != null && anterior != severidad;
 
         LecturaPersistida persistida = new LecturaPersistida(lectura.sensorId(), lectura.timestamp(),
                 lectura.valor(), lectura.unidadMedida(), severidad);
-        boolean cambio = anterior != null && anterior != severidad;
-        return store.insert(persistida).then(Mono.defer(() -> {
-            ultimaSeveridad.put(lectura.sensorId(), severidad);
-            if (cambio) {
-                AlertaEvento evento = new AlertaEvento(lectura.sensorId(), lectura.timestamp(),
-                        lectura.valor(), anterior, severidad, false);
-                return alertas.publish(evento).thenReturn(new Resultado(lectura.sensorId(), severidad, true));
+        String clave = ClaveIdempotencia.de(lectura);
+        IngestaTransaccionalPort.OutboxAlerta outbox = null;
+        if (cambio) {
+            AlertaEvento evento = new AlertaEvento(lectura.sensorId(), lectura.timestamp(),
+                    lectura.valor(), anterior, severidad, false);
+            outbox = new IngestaTransaccionalPort.OutboxAlerta(lectura.sensorId(),
+                    AlertaEventoJson.routingKey(evento), AlertaEventoJson.de(evento));
+        }
+
+        IngestaTransaccionalPort.OutboxAlerta outboxFinal = outbox;
+        return store.persistir(persistida, clave, outbox).map(resultado -> {
+            if (!resultado.persistida()) {
+                log.info("[ingestion] redelivery descartado (clave={})", clave);
+                return new Resultado(lectura.sensorId(), severidad, false, true);
             }
-            return Mono.just(new Resultado(lectura.sensorId(), severidad, false));
-        }));
+            ultimaSeveridad.put(lectura.sensorId(), severidad);
+            return new Resultado(lectura.sensorId(), severidad, outboxFinal != null, false);
+        });
     }
 
     private void validarVentana(LecturaEntrada lectura, Instant ahora) {

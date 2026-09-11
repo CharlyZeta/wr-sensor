@@ -1,23 +1,23 @@
 package com.wrsensor.ingestion;
 
-import com.wrsensor.ingestion.application.port.AlertaEventoPublisher;
-import com.wrsensor.ingestion.application.port.LecturaStore;
+import com.wrsensor.ingestion.application.port.IngestaTransaccionalPort;
 import com.wrsensor.ingestion.application.port.SensorConfigPort;
+import com.wrsensor.ingestion.application.service.ClaveIdempotencia;
 import com.wrsensor.ingestion.application.service.IngestorLecturas;
-import com.wrsensor.ingestion.domain.AlertaEvento;
 import com.wrsensor.ingestion.domain.LecturaEntrada;
 import com.wrsensor.ingestion.domain.LecturaPersistida;
 import com.wrsensor.ingestion.domain.RechazoLecturaException;
 import com.wrsensor.ingestion.domain.SensorInfo;
 import com.wrsensor.ingestion.domain.Severidad;
-import com.wrsensor.ingestion.infrastructure.config.IngestionProperties;
 import com.wrsensor.ingestion.infrastructure.adapter.in.messaging.LecturasRabbitConsumer;
+import com.wrsensor.ingestion.infrastructure.config.IngestionProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,8 +26,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit — FEAT-0011 IngestorLecturas (fakes) + parseo del payload.
- * Cubre AC-001..AC-003, AC-005..AC-008 y AF-01..AF-05 (codes).
+ * Unit — FEAT-0011 (severidad/persistencia) + FIX-0003 (outbox e idempotencia)
+ * con fakes del port transaccional.
+ * Cubre AC-001..003 (FEAT-0011), AF-01..05, y FIX-0003 BR-001/BR-002/BR-004/BR-010, AC-001.
  */
 class IngestorLecturasTest {
 
@@ -48,7 +49,8 @@ class IngestorLecturasTest {
             new IngestionProperties.Registry("http://x", new IngestionProperties.Registry.Auth("a", "b")),
             new IngestionProperties.Lecturas("sensor.lecturas", "queue", "dlq", "dlx"),
             new IngestionProperties.Alertas("sensor.alertas"),
-            new IngestionProperties.Messaging(3, "dlx"));
+            new IngestionProperties.Messaging(3, "dlx"),
+            new IngestionProperties.Outbox(null, null, null, null, null, null, null));
 
     private static final class FakeSensores implements SensorConfigPort {
         SensorInfo found = ACTIVO;
@@ -59,91 +61,137 @@ class IngestorLecturasTest {
         }
     }
 
-    private static final class FakeStore implements LecturaStore {
+    /** Fake transaccional: registra lo pedido y permite simular duplicado. */
+    private static final class FakeTxStore implements IngestaTransaccionalPort {
+        boolean duplicada;
         final List<LecturaPersistida> filas = new ArrayList<>();
+        final List<OutboxAlerta> outboxes = new ArrayList<>();
+        final List<String> claves = new ArrayList<>();
 
         @Override
-        public Mono<Void> insert(LecturaPersistida l) {
-            filas.add(l);
-            return Mono.empty();
+        public Mono<Resultado> persistir(LecturaPersistida lectura, String clave, OutboxAlerta outbox) {
+            claves.add(clave);
+            if (duplicada) {
+                return Mono.just(new Resultado(false));
+            }
+            filas.add(lectura);
+            if (outbox != null) outboxes.add(outbox);
+            return Mono.just(new Resultado(true));
         }
     }
 
-    private static final class FakeAlertas implements AlertaEventoPublisher {
-        final List<AlertaEvento> eventos = new ArrayList<>();
-
-        @Override
-        public Mono<Void> publish(AlertaEvento e) {
-            eventos.add(e);
-            return Mono.empty();
-        }
-    }
-
-    private record H(IngestorLecturas ingestor, FakeStore store, FakeAlertas alertas) {}
+    private record H(IngestorLecturas ingestor, FakeTxStore store) {}
 
     private static H newH(SensorInfo sensor) {
         FakeSensores sensores = new FakeSensores();
         sensores.found = sensor;
-        FakeStore store = new FakeStore();
-        FakeAlertas alertas = new FakeAlertas();
-        IngestorLecturas ing = new IngestorLecturas(sensores, store, alertas, PROPS);
-        return new H(ing, store, alertas);
+        FakeTxStore store = new FakeTxStore();
+        return new H(new IngestorLecturas(sensores, store, PROPS), store);
     }
 
     private static LecturaEntrada lectura(UUID id, String valor) {
         return new LecturaEntrada(id, Instant.now(), new BigDecimal(valor), "METROS");
     }
 
+    // ===== FEAT-0011 =====
+
     @Test
-    @DisplayName("AC-001: primera lectura NORMAL se persiste y NO publica evento")
-    void ac001_normalSinEvento() {
+    @DisplayName("AC-001 (FEAT-0011): primera lectura NORMAL se persiste y NO encola outbox")
+    void ac001_normalSinOutbox() {
         H h = newH(ACTIVO);
         StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "5.0")))
-                .assertNext(r -> assertThat(r.eventoPublicado()).isFalse())
+                .assertNext(r -> {
+                    assertThat(r.eventoEncolado()).isFalse();
+                    assertThat(r.duplicado()).isFalse();
+                })
                 .verifyComplete();
         assertThat(h.store().filas).hasSize(1);
         assertThat(h.store().filas.get(0).severidad()).isEqualTo(Severidad.NORMAL);
-        assertThat(h.alertas().eventos).isEmpty();
+        assertThat(h.store().outboxes).isEmpty();
     }
 
     @Test
-    @DisplayName("AC-002: cambio NORMAL→WARNING persiste y publica evento key severidadNueva")
-    void ac002_cambioAWarningPublicaEvento() {
+    @DisplayName("AC-002 (FEAT-0011) / BR-004 (FIX-0003): cambio NORMAL→WARNING persiste y encola outbox (sin publicar)")
+    void ac002_cambioEncolaOutbox() {
         H h = newH(ACTIVO);
         h.ingestor().procesar(lectura(ID_A, "5.0")).block(); // NORMAL previo
 
         StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "7.0")))
-                .assertNext(r -> assertThat(r.eventoPublicado()).isTrue())
+                .assertNext(r -> assertThat(r.eventoEncolado()).isTrue())
                 .verifyComplete();
-        assertThat(h.alertas().eventos).hasSize(1);
-        AlertaEvento e = h.alertas().eventos.get(0);
-        assertThat(e.severidadAnterior()).isEqualTo(Severidad.NORMAL);
-        assertThat(e.severidadNueva()).isEqualTo(Severidad.WARNING);
-        assertThat(e.cruceHisteresis()).isFalse();
+        assertThat(h.store().outboxes).hasSize(1);
+        IngestaTransaccionalPort.OutboxAlerta ob = h.store().outboxes.get(0);
+        assertThat(ob.sensorId()).isEqualTo(ID_A);
+        assertThat(ob.routingKey()).isEqualTo("alerta.warning");
+        assertThat(ob.payload())
+                .contains("\"severidadAnterior\":\"NORMAL\"")
+                .contains("\"severidadNueva\":\"WARNING\"")
+                .contains("\"valorLectura\":7.0");
     }
 
     @Test
-    @DisplayName("AC-003: cambio WARNING→CRITICAL publica evento CRITICAL")
-    void ac003_cambioACritical() {
+    @DisplayName("AC-003 (FEAT-0011): cambio a CRITICAL encola con routing key alerta.critical")
+    void ac003_cambioCritical() {
         H h = newH(ACTIVO);
         h.ingestor().setUltimaSeveridad(ID_A, Severidad.WARNING);
         StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "9.0")))
-                .assertNext(r -> assertThat(r.eventoPublicado()).isTrue())
+                .assertNext(r -> assertThat(r.eventoEncolado()).isTrue())
                 .verifyComplete();
-        assertThat(h.alertas().eventos.get(0).severidadNueva()).isEqualTo(Severidad.CRITICAL);
+        assertThat(h.store().outboxes.get(0).routingKey()).isEqualTo("alerta.critical");
         assertThat(h.store().filas.get(0).severidad()).isEqualTo(Severidad.CRITICAL);
     }
+
+    // ===== FIX-0003 =====
+
+    @Test
+    @DisplayName("FIX-0003 AC-001 / BR-002: redelivery (clave ya procesada) → duplicado, sin outbox ni persistencia")
+    void fix0003_ac001_redelivery() {
+        H h = newH(ACTIVO);
+        h.store().duplicada = true;
+        StepVerifier.create(h.ingestor().procesar(lectura(ID_A, "7.0")))
+                .assertNext(r -> {
+                    assertThat(r.duplicado()).isTrue();
+                    assertThat(r.eventoEncolado()).isFalse();
+                })
+                .verifyComplete();
+        assertThat(h.store().filas).isEmpty();
+        assertThat(h.store().outboxes).isEmpty();
+    }
+
+    @Test
+    @DisplayName("FIX-0003 BR-001: clave = eventId si viene; si no, natural (sensorId, timestamp)")
+    void fix0003_br001_clave() {
+        Instant ts = Instant.parse("2026-09-10T12:00:00Z");
+        LecturaEntrada conEvento = new LecturaEntrada(ID_A, ts, new BigDecimal("5.0"), "METROS", "evt-123");
+        LecturaEntrada sinEvento = new LecturaEntrada(ID_A, ts, new BigDecimal("5.0"), "METROS");
+
+        assertThat(ClaveIdempotencia.de(conEvento)).isEqualTo("evt:evt-123");
+        assertThat(ClaveIdempotencia.de(sinEvento)).isEqualTo("nat:" + ID_A + ":" + ts.toEpochMilli());
+    }
+
+    @Test
+    @DisplayName("FIX-0003 BR-010: el parser acepta payload actual (sin eventId) y también con eventId")
+    void fix0003_br010_payloadCompatibilidad() {
+        String json = "{\"sensorId\":\"" + ID_A + "\",\"timestamp\":\"2026-09-10T12:00:00Z\","
+                + "\"valor\":5.1,\"unidadMedida\":\"METROS\"}";
+        LecturaEntrada l = LecturasRabbitConsumer.parseLectura(json.getBytes(StandardCharsets.UTF_8));
+        assertThat(l.eventId()).isNull();
+        assertThat(ClaveIdempotencia.de(l)).startsWith("nat:");
+
+        String conEvento = json.replace("{\"sensorId\"", "{\"eventId\":\"abc-1\",\"sensorId\"");
+        assertThat(LecturasRabbitConsumer.parseLectura(conEvento.getBytes(StandardCharsets.UTF_8)).eventId())
+                .isEqualTo("abc-1");
+    }
+
+    // ===== AF (FEAT-0011) =====
 
     @Test
     @DisplayName("AF-02 / AC-005: sensor desconocido → SENSOR_UNKNOWN y no persiste")
     void af02_sensorDesconocido() {
         H h = newH(ACTIVO);
         StepVerifier.create(h.ingestor().procesar(lectura(UUID.randomUUID(), "5.0")))
-                .expectErrorSatisfies(err -> {
-                    assertThat(err).isInstanceOf(RechazoLecturaException.class);
-                    assertThat(((RechazoLecturaException) err).motivo)
-                            .isEqualTo(RechazoLecturaException.SENSOR_UNKNOWN);
-                })
+                .expectErrorSatisfies(err -> assertThat(((RechazoLecturaException) err).motivo)
+                        .isEqualTo(RechazoLecturaException.SENSOR_UNKNOWN))
                 .verify();
         assertThat(h.store().filas).isEmpty();
     }
@@ -153,11 +201,8 @@ class IngestorLecturasTest {
     void af03_sensorInactivo() {
         H h = newH(INACTIVO);
         StepVerifier.create(h.ingestor().procesar(lectura(ID_INACTIVO, "5.0")))
-                .expectErrorSatisfies(err -> {
-                    assertThat(err).isInstanceOf(RechazoLecturaException.class);
-                    assertThat(((RechazoLecturaException) err).motivo)
-                            .isEqualTo(RechazoLecturaException.SENSOR_INACTIVE);
-                })
+                .expectErrorSatisfies(err -> assertThat(((RechazoLecturaException) err).motivo)
+                        .isEqualTo(RechazoLecturaException.SENSOR_INACTIVE))
                 .verify();
         assertThat(h.store().filas).isEmpty();
     }
@@ -166,36 +211,30 @@ class IngestorLecturasTest {
     @DisplayName("AF-05 / AC-008: timestamp fuera de ventana → TIMESTAMP_OUT_OF_WINDOW")
     void af05_ventana() {
         H h = newH(ACTIVO);
-        Instant viejo = Instant.now().minusSeconds(3600);
-        LecturaEntrada l = new LecturaEntrada(ID_A, viejo, new BigDecimal("5.0"), "METROS");
-        StepVerifier.create(h.ingestor().procesar(l))
-                .expectErrorSatisfies(err -> {
-                    assertThat(err).isInstanceOf(RechazoLecturaException.class);
-                    assertThat(((RechazoLecturaException) err).motivo)
-                            .isEqualTo(RechazoLecturaException.TIMESTAMP_OUT_OF_WINDOW);
-                })
+        LecturaEntrada vieja = new LecturaEntrada(ID_A, Instant.now().minusSeconds(3600),
+                new BigDecimal("5.0"), "METROS");
+        StepVerifier.create(h.ingestor().procesar(vieja))
+                .expectErrorSatisfies(err -> assertThat(((RechazoLecturaException) err).motivo)
+                        .isEqualTo(RechazoLecturaException.TIMESTAMP_OUT_OF_WINDOW))
                 .verify();
     }
 
     @Test
-    @DisplayName("AF-01 / BR-001 / AC-004: payload invalido → PAYLOAD_INVALID (parseo)")
+    @DisplayName("AF-01 / BR-001 (FEAT-0011): payload invalido → PAYLOAD_INVALID (parseo)")
     void af01_payloadInvalido() {
-        String valido = "{\"sensorId\":\"00000000-0000-4000-8000-00000000000a\",\"timestamp\":\"2026-09-09T12:00:00Z\","
+        String valido = "{\"sensorId\":\"" + ID_A + "\",\"timestamp\":\"2026-09-10T12:00:00Z\","
                 + "\"valor\":5.1,\"unidadMedida\":\"METROS\"}";
-        assertThat(LecturasRabbitConsumer.parseLectura(valido.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-                .satisfies(l -> {
-                    assertThat(l.sensorId()).isEqualTo(ID_A);
-                    assertThat(l.valor()).isEqualByComparingTo("5.1");
-                });
+        assertThat(LecturasRabbitConsumer.parseLectura(valido.getBytes(StandardCharsets.UTF_8)).valor())
+                .isEqualByComparingTo("5.1");
 
         String[] invalidos = {
-                "{\"timestamp\":\"2026-09-09T12:00:00Z\",\"valor\":5.1,\"unidadMedida\":\"METROS\"}",
+                "{\"timestamp\":\"2026-09-10T12:00:00Z\",\"valor\":5.1,\"unidadMedida\":\"METROS\"}",
                 "no-json",
-                "{\"sensorId\":\"no-uuid\",\"timestamp\":\"2026-09-09T12:00:00Z\",\"valor\":5.1,\"unidadMedida\":\"METROS\"}"
+                "{\"sensorId\":\"no-uuid\",\"timestamp\":\"2026-09-10T12:00:00Z\",\"valor\":5.1,\"unidadMedida\":\"METROS\"}"
         };
         for (String bad : invalidos) {
             try {
-                LecturasRabbitConsumer.parseLectura(bad.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                LecturasRabbitConsumer.parseLectura(bad.getBytes(StandardCharsets.UTF_8));
                 assertThat(false).as("deberia rechazar: " + bad).isTrue();
             } catch (RechazoLecturaException e) {
                 assertThat(e.motivo).isEqualTo(RechazoLecturaException.PAYLOAD_INVALID);

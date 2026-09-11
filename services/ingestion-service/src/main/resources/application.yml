@@ -31,7 +31,17 @@ ingestion:
   messaging:
     retry-max-attempts: 3
     dead-letter-exchange: sensor.lecturas.dlx
+  # FIX-0003: publisher de outbox (nunca hardcodeado; BR-004..BR-008)
+  outbox:
+    intervalo-ms: 1000
+    tamano-lote: 50
+    max-intentos: 5
+    backoff-inicial-ms: 1000
+    multiplicador: 2.0
+    backoff-max-ms: 30000
+    retencion-dias: 90
 
 logging:
   level:
     com.wrsensor.ingestion: INFO
+
