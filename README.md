@@ -6,7 +6,7 @@ con **Spec-Driven Development Gate/Loop (SDD-GL)**. Cada funcionalidad nace como
 humana (HO-Gate) y luego un Loop autónomo de implementación + tests hasta
 `RESOLVED`.
 
-> Estado al **2026-09-09**: 14 Work Items cerrados (~85% del roadmap v1).
+> Estado al **2026-09-11**: 15 Work Items cerrados (~90% del roadmap v1).
 
 ---
 
@@ -58,7 +58,7 @@ sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico key
 
 Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
 paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
-`application.yml`, tests trazables a los contracts (BR/AC/AF) — **164 verdes**.
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **223 verdes**.
 Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 
 ## 3. Documentación (índice)
@@ -95,9 +95,11 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FIX-0002` | Parser `sensor.alertas` (valorLectura/cruceHisteresis) | ✅ RESOLVED | 3 · IT 1 |
 | `FIX-0003` | Outbox + idempotencia en ingestion | ✅ RESOLVED | 13 · IT 8 |
 | `FIX-0004` | Rango físico + calidad del dato | ✅ RESOLVED | 22 · IT 6 |
+| `FIX-0005` | Particionamiento del consumo por `sensorId` | ✅ RESOLVED | 20 · IT 7 |
 
-**Suites verdes:** `sensor-registry` 123 · `data-simulator` 14 · `ingestion-service`
-11 · `alerting-service` 8 → **156 tests** (JUnit 5; ITs con Testcontainers).
+**Suites verdes:** `sensor-registry` 123 · `data-simulator` 14 · `ingestion-service` 66 ·
+`alerting-service` 12 · `query-api` 8 → **223 tests** (JUnit 5; ITs con Testcontainers;
+detalle por módulo en `docs/RUNBOOK.md` §2).
 
 ---
 

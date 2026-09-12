@@ -97,3 +97,28 @@ ingestion-service** (global por unidad + override por sensor), lectura fuera de 
 marcada como `ERROR_SENSOR` por el emisor → se persiste con `calidad = ERROR_SENSOR` y
 `severidad NULL` (columna nullable), **sin** evaluar bandas ni encolar alerta, y sin alterar
 la última severidad conocida; `query-api` expone `calidad` y tolera severidad nula.
+
+## ADR-0015 · Particionamiento del consumo por `sensorId` con afinidad sensor→instancia (FIX-0005)
+**Contexto:** el consumo de `sensor.lecturas` era una cola única con un consumer lógico.
+Escalar `ingestion-service` convertía a las instancias en competing consumers de la misma
+cola, lo que (a) rompía el orden relativo por sensor y (b) repartía entre procesos el estado
+en memoria `ultimaSeveridad`, **perdiendo transiciones de severidad reales** (alertas que
+nunca se emiten). El doc de backlog (`docs/FIX-0006-...`) pedía "orden por sensorId" pero
+citaba un campo `sequence` inexistente en el payload y no contemplaba ese estado.
+**Decisión (HO-Gate 2026-09-11):** el particionamiento se resuelve **en el broker** con un
+exchange **`x-consistent-hash`** (`sensor.lecturas.part`) alimentado por un binding
+**exchange-to-exchange** (`lectura.#`) desde el topic `sensor.lecturas`, y `N` colas
+`queue.sensor.lecturas.p{i}` bindeadas con peso `"1"`. Consecuencia buscada: **afinidad
+sensor → partición → instancia**, que hace correcto el estado en memoria sin moverlo a Redis.
+El publisher (`data-simulator`) **no** cambia; `N` (default 4) y las particiones asignadas por
+instancia son configuración (`ingestion.particiones.*` / `INGESTION_PARTICIONES_*`).
+**Alternativas descartadas:** (B) sufijo de partición calculado por el publisher — viola el
+"no tocar el publisher" y convierte cada rebalanceo en redeploy del simulador; (C)
+`x-single-active-consumer` — da orden pero no escalado horizontal.
+**Consecuencias:** requiere habilitar el plugin `rabbitmq_consistent_hash_exchange` (viene con
+la distribución de RabbitMQ, no habilitado por defecto) en compose y en los ITs; si la
+topología no se puede declarar, la instancia registra ERROR y **no** consume (nunca degrada a
+consumir sin particionar); cambiar `total` exige reinicio coordinado (sin rebalanceo en
+caliente) y la cola anterior `queue.sensor.lecturas` se retira con drenaje documentado. El
+mismo problema de afinidad existe si se escala `alerting-service` (estado de histéresis en
+memoria): queda como contrato futuro, junto con persistir la última severidad.

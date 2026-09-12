@@ -23,9 +23,16 @@ ingestion:
       password: ${REGISTRY_AUTH_PASSWORD:Viewer123!}
   lecturas:
     exchange: sensor.lecturas
-    queue: queue.sensor.lecturas
     dlq-queue: queue.sensor.lecturas.dlq
     dlx: sensor.lecturas.dlx
+  # FIX-0005: particionamiento del consumo por sensorId (nunca hardcodeado; BR-003/BR-004).
+  # La cola de consumo se deriva del patron: queue.sensor.lecturas.p0 .. p{total-1}.
+  # Asignacion por instancia: INGESTION_PARTICIONES_ASIGNADAS=0,1 (default: todas).
+  particiones:
+    total: ${INGESTION_PARTICIONES_TOTAL:4}
+    exchange: ${INGESTION_PARTICIONES_EXCHANGE:sensor.lecturas.part}
+    patron: ${INGESTION_PARTICIONES_PATRON:queue.sensor.lecturas.p{i}}
+    # asignadas: [0, 1]   # descomentar para limitar el consumo de esta instancia
   alertas:
     exchange: sensor.alertas
   messaging:

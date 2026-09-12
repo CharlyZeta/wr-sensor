@@ -8,6 +8,10 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: wrsensor
       RABBITMQ_DEFAULT_PASS: wrsensor
+    # FIX-0005 BR-009: el exchange type x-consistent-hash (particionamiento por sensorId)
+    # viene incluido en la distribucion de RabbitMQ pero hay que habilitarlo explicitamente.
+    volumes:
+      - ./infra/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -93,6 +97,10 @@ services:
       REGISTRY_URL: http://sensor-registry:8080
       REGISTRY_AUTH_EMAIL: viewer@wrsensor.local
       REGISTRY_AUTH_PASSWORD: Viewer123!
+      # FIX-0005: particiones del consumo. Para escalar con `--scale`, cada instancia
+      # necesita su propio subconjunto: INGESTION_PARTICIONES_ASIGNADAS=0 / 1 / 2,3
+      # (ver docs/RUNBOOK.md §Escalado horizontal de ingestion).
+      INGESTION_PARTICIONES_TOTAL: 4
     depends_on:
       timescaledb: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }

@@ -1,0 +1,5 @@
+%% -*- erlang -*-
+%% FIX-0005 (BR-003/BR-009): plugins habilitados del broker.
+%% `rabbitmq_consistent_hash_exchange` aporta el exchange type `x-consistent-hash` que
+%% particiona las lecturas por sensorId (afinidad sensor -> particion -> instancia).
+[rabbitmq_management,rabbitmq_consistent_hash_exchange].

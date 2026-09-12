@@ -62,7 +62,10 @@ class FEAT0011MainFlowIT {
     @SuppressWarnings("resource")
     private static final RabbitMQContainer RABBIT = new RabbitMQContainer(
             DockerImageName.parse("rabbitmq:3.13-management-alpine"))
-            .withNetwork(NETWORK).withReuse(true);
+            .withNetwork(NETWORK)
+            // FIX-0005: ingestion particiona con x-consistent-hash
+            .withPluginsEnabled("rabbitmq_consistent_hash_exchange")
+            .withReuse(true);
 
     private static HttpServer registry;
 

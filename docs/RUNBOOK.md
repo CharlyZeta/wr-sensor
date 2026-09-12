@@ -35,16 +35,19 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 & …\mvn.cmd -o test -Dtest='FEAT0011MainFlowIT'
 ```
 
-### Resumen de suites (verde al 2026-09-09)
+### Resumen de suites (verde al 2026-09-11)
 
 | Módulo | Unit/assert | ITs | Total |
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 | 123 |
 | `data-simulator` | 13 | 1 | 14 |
-| `ingestion-service` | 25 | 14 | 39 |
+| `ingestion-service` | 45 | 21 | 66 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 7 | 1 | 8 |
-| **Total** | **144** | **52** | **196** |
+| **Total** | **164** | **59** | **223** |
+
+> Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
+> `mvn -o test -Dtest='*IT'` y requieren Docker Desktop.
 
 ## 3. Credenciales y config dev
 
@@ -85,7 +88,52 @@ Flujo de prueba end-to-end manual:
 # 4) ingestion consume y persiste; alerting notifica por ws://localhost:<puerto>/ws/alertas
 ```
 
-## 5. Orquestación SDD-GL
+## 5. Escalado horizontal de `ingestion-service` (FIX-0005)
+
+El consumo está **particionado por `sensorId`**: el exchange `x-consistent-hash`
+`sensor.lecturas.part` reparte las lecturas entre `N` colas
+`queue.sensor.lecturas.p0 … p{N-1}` y cada instancia consume un subconjunto **disjunto**.
+Eso garantiza afinidad sensor → partición → instancia (orden por sensor y estado en memoria
+`ultimaSeveridad` coherente).
+
+1. Habilitar el exchange type en el broker: `docker-compose.yml` monta
+   `infra/rabbitmq/enabled_plugins` con `rabbitmq_consistent_hash_exchange` (viene incluido en
+   la distribución de RabbitMQ, pero hay que habilitarlo). Verificación:
+   `docker compose exec rabbitmq rabbitmq-plugins list -e | grep consistent_hash`.
+2. Definir particiones: `INGESTION_PARTICIONES_TOTAL=4` (default). Escalar requiere asignar a
+   cada instancia su subconjunto (no se puede con un único `--scale` porque todas las réplicas
+   comparten entorno); usar un servicio por instancia o un override:
+
+   ```yaml
+   # docker-compose.override.yml
+   services:
+     ingestion-service:
+       environment:
+         INGESTION_PARTICIONES_TOTAL: 4
+         INGESTION_PARTICIONES_ASIGNADAS: "0,1"     # instancia A
+   ```
+3. Verificar el reparto: en la consola de RabbitMQ (`http://localhost:15672`) cada cola
+   `queue.sensor.lecturas.p{i}` debe tener **1** consumer como máximo, y las particiones sin
+   consumer deben acumular mensajes (la instancia emite un **WARN** al arrancar listándolas).
+   Nada se pierde: los mensajes quedan en su cola hasta que aparezca un consumer.
+4. **Cambiar `total`** (rebalanceo): el anillo del hash se recalcula, así que hay que hacer
+   **reinicio coordinado** de todas las instancias. Procedimiento: detener instancias →
+   cambiar `INGESTION_PARTICIONES_TOTAL` en todas → arrancar de nuevo (cada una declara la
+   topología completa). No hay rebalanceo en caliente.
+5. **Migración desde la cola única** (`queue.sensor.lecturas`, previa a FIX-0005): drenar
+   antes de retirarla, o aceptar el reproceso (la clave de idempotencia de FIX-0003 evita
+   duplicados). Drenaje:
+
+   ```powershell
+   docker compose exec rabbitmq rabbitmqctl purge_queue queue.sensor.lecturas
+   # o consumirla sin ack para inspeccionar:
+   docker compose exec rabbitmq rabbitmqadmin get queue=queue.sensor.lecturas count=100
+   ```
+
+6. Si el broker no soporta el exchange type (plugin sin habilitar) la instancia registra
+   **ERROR** y **no** arranca el consumo: nunca degrada a consumir sin particionar.
+
+## 6. Orquestación SDD-GL
 
 - Orquestador: `CLAUDE.md` (Claude Code) / `AGENTS.md` (Antigravity). Arranque: leer
   `contracts/[ID].md` → DRAFT/GATE → `sdd-gate`; APPROVED/LOOP → `sdd-loop`;

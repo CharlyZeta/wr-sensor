@@ -139,6 +139,37 @@ preservada.
 | `DeactivateSensorServiceTest` | 3 ✅ | BR-002/004/005 (404, UPDATE INACTIVO, no-op idempotente) |
 
 **Suite `sensor-registry` actual (2026-09-09): 89 unit/assert + 34 ITs = 123 verdes.**
+### 2i. `FIX-0005` (RESOLVED 2026-09-11) — particionamiento del consumo por `sensorId`
+
+Origen: `docs/FIX-0006-particionamiento-consumers.md` (backlog), refinado en Gate y
+promocionado a `contracts/FIX-0005.md` (la serie de `contracts/` es la autoritativa).
+
+- **Problema real detectado en Gate**: el doc original pedía "orden relativo por sensor" y
+  usaba un campo `sequence` que **no existe** en el payload. Peor: escalar
+  `ingestion-service` con una cola única reparte el estado en memoria `ultimaSeveridad`
+  entre procesos, con lo que **se pierden transiciones de severidad reales** (alertas que
+  nunca se emiten).
+- **Solución**: particionamiento en el broker con exchange `x-consistent-hash`
+  (`sensor.lecturas.part`), binding exchange-to-exchange (`lectura.#`) desde el topic
+  `sensor.lecturas` y `N` colas `queue.sensor.lecturas.p{i}` con peso `"1"`; el publisher
+  **no** cambia. Resultado: **afinidad sensor → partición → instancia**, un consumer por
+  partición con `qos=1` y procesamiento secuencial (`concatMap`).
+- **Configuración**: `ingestion.particiones.total` (default **4**) / `asignadas` /
+  `exchange` / `patron`, por YAML o entorno (`INGESTION_PARTICIONES_*`). Cada instancia
+  declara la topología completa y consume solo sus particiones.
+- **Operación**: requiere habilitar `rabbitmq_consistent_hash_exchange` en el broker
+  (`infra/rabbitmq/enabled_plugins`, montado por compose) y en los ITs; si la topología no
+  se puede declarar la instancia registra ERROR y **no** consume (fail-fast); WARN si hay
+  particiones sin consumer (sus mensajes quedan en cola, no se pierden); cambiar `total`
+  exige reinicio coordinado y la cola anterior `queue.sensor.lecturas` se retira con drenaje
+  documentado en `docs/RUNBOOK.md` §5.
+- **Fuera de alcance (decidido en HO-Gate)**: persistir `ultimaSeveridad` fuera del proceso
+  (la afinidad lo hace correcto) y el mismo problema de afinidad al escalar
+  `alerting-service` (histéresis en memoria) → contratos futuros.
+- **Evidencia**: `contracts/FIX-0005.md` (23/23 ✅), auditoría
+  `.sdd/runs/FIX-0005-20260911-201500.md`, ADR-0015, suites `45 unit + 21 IT` en
+  `ingestion-service` (incluye los 3 ITs previos revalidados con el plugin habilitado).
+
 ### 2h. `FIX-0002` (RESOLVED 2026-09-10) — parser de `sensor.alertas` perdía datos
 `AlertasRabbitConsumer.parseEvento` construía el `EventoAlerta` con
 `valorLectura = BigDecimal.ONE` y `cruceHisteresis = false` **hardcodeados**
@@ -210,9 +241,10 @@ Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idemp
 **Estado: aguardando la orden de ejecución del humano** (no se procesan todavía).
 
 > **Mapeo de IDs (serie autoritativa = `contracts/`):**
-> - `docs/FIX-0006-particionamiento-consumers.md` → **PROMOCIONADO a `contracts/FIX-0005.md`**
->   (Gate EXPRESS, 2026-09-11; Ambiguity Log resuelto: consistent-hash exchange + binding e2e,
->   4 particiones, estado de severidad fuera de alcance). Pendiente HO-Gate.
+> - `docs/FIX-0006-particionamiento-consumers.md` → **PROMOCIONADO y RESUELTO como
+>   `contracts/FIX-0005.md`** (Gate EXPRESS 2026-09-11, Loop completado 2026-09-11, 23/23 ✅;
+>   Ambiguity Log resuelto: consistent-hash exchange + binding e2e, 4 particiones, estado de
+>   severidad fuera de alcance).
 > - Próximo ID libre tras `FIX-0005`: `FIX-0006` (los docs de backlog deberán renumerarse al
 >   promocionarse, igual que ocurrió con `docs/FIX-0002-schema-versionado-lecturas.md`).
 

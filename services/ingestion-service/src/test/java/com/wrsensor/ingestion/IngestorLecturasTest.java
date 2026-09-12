@@ -48,7 +48,7 @@ class IngestorLecturasTest {
     private static final IngestionProperties PROPS = new IngestionProperties(
             300L,
             new IngestionProperties.Registry("http://x", new IngestionProperties.Registry.Auth("a", "b")),
-            new IngestionProperties.Lecturas("sensor.lecturas", "queue", "dlq", "dlx"),
+            new IngestionProperties.Lecturas("sensor.lecturas", "dlq", "dlx"),
             new IngestionProperties.Alertas("sensor.alertas"),
             new IngestionProperties.Messaging(3, "dlx"),
             new IngestionProperties.Outbox(null, null, null, null, null, null, null),
@@ -56,7 +56,8 @@ class IngestorLecturasTest {
                     java.util.Map.of(
                             "METROS", new IngestionProperties.RangoFisico.Rango(new BigDecimal("-1.0"), new BigDecimal("15.0")),
                             "CENTIMETROS", new IngestionProperties.RangoFisico.Rango(new BigDecimal("-100"), new BigDecimal("1500"))),
-                    java.util.Map.of("SALADO-SANJUSTO", new IngestionProperties.RangoFisico.Rango(new BigDecimal("0.0"), new BigDecimal("8.0")))));
+                    java.util.Map.of("SALADO-SANJUSTO", new IngestionProperties.RangoFisico.Rango(new BigDecimal("0.0"), new BigDecimal("8.0")))),
+            new IngestionProperties.Particiones(4, null, "sensor.lecturas.part", "queue.sensor.lecturas.p{i}"));
 
     private static final class FakeSensores implements SensorConfigPort {
         SensorInfo found = ACTIVO;

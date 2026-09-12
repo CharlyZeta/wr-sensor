@@ -3,11 +3,12 @@ package com.wrsensor.ingestion.infrastructure.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Configuracion de ingestion (application.yml) — FEAT-0011 BR-005/BR-006,
- * FIX-0003 (outbox) y FIX-0004 (rango fisico).
+ * FIX-0003 (outbox), FIX-0004 (rango fisico) y FIX-0005 (particiones).
  */
 @ConfigurationProperties(prefix = "ingestion")
 public record IngestionProperties(
@@ -17,14 +18,32 @@ public record IngestionProperties(
         Alertas alertas,
         Messaging messaging,
         Outbox outbox,
-        RangoFisico rangoFisico
+        RangoFisico rangoFisico,
+        Particiones particiones
 ) {
 
     public record Registry(String baseUrl, Auth auth) {
         public record Auth(String email, String password) {}
     }
 
-    public record Lecturas(String exchange, String queue, String dlqQueue, String dlx) {}
+    /**
+     * Topología de lecturas (FIX-0005): el exchange topic y la DLX/DLQ. La cola de consumo
+     * ya no es un valor único: se deriva de {@link Particiones#patron()} (BR-003).
+     */
+    public record Lecturas(String exchange, String dlqQueue, String dlx) {}
+
+    /**
+     * Particionamiento del consumo por sensorId (FIX-0005 BR-003/BR-004/BR-005).
+     * Nunca hardcodeado: {@code total} y {@code asignadas} se configuran por YAML o entorno.
+     *
+     * @param total     cantidad de particiones (default 4)
+     * @param asignadas particiones que consume esta instancia (default: todas)
+     * @param exchange  exchange {@code x-consistent-hash} (default {@code sensor.lecturas.part})
+     * @param patron    patrón de nombre de cola, con {@code {i}} (default
+     *                  {@code queue.sensor.lecturas.p{i}})
+     */
+    public record Particiones(Integer total, List<Integer> asignadas, String exchange,
+                             String patron) {}
 
     public record Alertas(String exchange) {}
 

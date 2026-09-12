@@ -38,12 +38,13 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 (6 ITs) | BR/AC/AF por contract + e2e FEAT-0001..0006 |
 | `data-simulator` | 13 | 1 | `ValorSinteticoTest` 3 · `LecturaJsonTest` 1 · `SimuladorServiceTest` 9 |
-| `ingestion-service` | 25 | 14 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · ITs (FEAT-0011 + FIX-0003 + FIX-0004) |
+| `ingestion-service` | 45 | 21 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
 | `query-api` | 7 | 1 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 |
 
-**Total: 144 unit/assert + 52 ITs = 196 verdes** (JUnit 5, AssertJ, StepVerifier,
-WebTestClient, Testcontainers — Maven offline).
+**Total: 164 unit/assert + 59 ITs = 223 verdes** (JUnit 5, AssertJ, StepVerifier,
+WebTestClient, Testcontainers — Maven offline). Los `*IT` se corren aparte:
+`mvn -o test -Dtest='*IT'`.
 
 ## Fixes de infraestructura (bug reales, documentados en audits)
 
@@ -64,13 +65,25 @@ WebTestClient, Testcontainers — Maven offline).
    por sensor, `calidad` (`OK`/`ERROR_SENSOR`) y `severidad` nullable; las lecturas
    erróneas se persisten pero no evalúan severidad ni alertan. Bug derivado corregido:
    `row.get(col, Tipo.class)` con NULL en query-api.
+8. **Pérdida de alertas al escalar ingestion** (FIX-0005): con una cola única, escalar
+   convertía a las instancias en competing consumers y `ultimaSeveridad` (memoria por
+   instancia) se repartía entre procesos → transiciones de severidad reales que nunca se
+   emitían. Corregido con **particionamiento por `sensorId`** (exchange `x-consistent-hash`
+   + binding e2e, afinidad sensor → partición → instancia, `N` configurable, un consumer por
+   partición con `qos=1` y orden intra-partición) y fail-fast si la topología no se puede
+   declarar. Bug de test corregido: `queuePurge` sobre una cola inexistente cierra el canal
+   AMQP; y la management API de RabbitMQ **omite los campos en cero** (0 ≠ ausente).
 
 ## Pendientes (roadmap v1)
 
-`FEAT-0013` query-api (histórico §9.2/keyset, última lectura Redis, WS por sensor) →
-Frontend React → `docker-compose.yml` + multi-módulo Maven → datos semilla/dashboard.
-Servicios cerrados a la fecha: 4 (sensor-registry, data-simulator, ingestion,
-alerting).
+Frontend React (dashboards + mapa) → Redis para `/actual` → continuous aggregates de
+TimescaleDB (§9.2 raw/aggregate) → manifiestos K8s (sólo documentación).
+Backlog de fixes en espera: `docs/FIX-0005-gateway-rate-limiting.md`,
+`docs/FIX-0007-circuit-breaker.md` y `docs/FIX-0002-schema-versionado-lecturas.md`
+(renumerar antes de promocionar), más los dos ítems que dejó abiertos FIX-0005:
+persistir la última severidad y el mismo problema de afinidad al escalar
+`alerting-service`. Servicios cerrados a la fecha: 5 (sensor-registry, data-simulator,
+ingestion, alerting, query-api).
 
 
 
