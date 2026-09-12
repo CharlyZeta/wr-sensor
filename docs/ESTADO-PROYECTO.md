@@ -209,7 +209,15 @@ Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idemp
 `FIX-0006-particionamiento-consumers.md`, `FIX-0007-circuit-breaker.md` (todos DRAFT/GATE).
 **Estado: aguardando la orden de ejecución del humano** (no se procesan todavía).
 
-> Nota de gobernanza: existe **colisión de ID** entre `contracts/FIX-0002.md` (este work
-> item, RESOLVED) y `docs/FIX-0002-schema-versionado-lecturas.md` (backlog). Al recibir
-> la orden de ejecución, el primer paso del Gate será renumerar la serie del backlog
-> (p. ej. FIX-0008+) antes de crear su contract en `contracts/`.
+> **Mapeo de IDs (serie autoritativa = `contracts/`):**
+> - `docs/FIX-0006-particionamiento-consumers.md` → **PROMOCIONADO a `contracts/FIX-0005.md`**
+>   (Gate EXPRESS, 2026-09-11; Ambiguity Log resuelto: consistent-hash exchange + binding e2e,
+>   4 particiones, estado de severidad fuera de alcance). Pendiente HO-Gate.
+> - Próximo ID libre tras `FIX-0005`: `FIX-0006` (los docs de backlog deberán renumerarse al
+>   promocionarse, igual que ocurrió con `docs/FIX-0002-schema-versionado-lecturas.md`).
+
+> Nota de gobernanza: existe **colisión de ID** entre `contracts/FIX-0002.md` (RESOLVED) y
+> `docs/FIX-0002-schema-versionado-lecturas.md`, y entre los docs de backlog `FIX-0005..0007`
+> y los IDs que irá tomando la serie de `contracts/`. Al recibir la orden de ejecución, el
+> primer paso del Gate será renumerar el documento de backlog (p. ej. FIX-0007+) antes de
+> crear su contract en `contracts/`.

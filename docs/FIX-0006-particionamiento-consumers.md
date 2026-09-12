@@ -1,6 +1,17 @@
 # FIX-0006 — Particionamiento de consumers de `ingestion-service` por `sensorId`
 
-**Status:** DRAFT
+> **PROMOCIONADO (2026-09-11):** este documento de backlog fue refinado en Gate y es hoy
+> **`contracts/FIX-0005.md`** (Status: DRAFT / Mode: GATE). La serie autoritativa de IDs es
+> `contracts/`, por eso el work item viaja como `FIX-0005` y no como `FIX-0006`.
+> Defectos corregidos en la promoción: (1) `sequence` no existe en el payload y ningún AC lo
+> usa; (2) el escalado con una cola única rompe `ultimaSeveridad` en memoria y pierde
+> transiciones reales → pasó a ser criterio; (3) el orden por `sensorId` no es expresable con
+> bindings de topic → se resolvió con consistent-hash exchange + binding e2e (publisher
+> intacto); (4) los AC de escalado se reescribieron a afirmaciones deterministas (afinidad,
+> ausencia de consumers duplicados) en lugar de "las 3 instancias procesan en paralelo".
+> Este archivo queda como registro histórico del backlog.
+
+**Status:** PROMOCIONADO a `contracts/FIX-0005.md`
 **Mode:** GATE
 **Servicio(s) afectado(s):** `ingestion-service`, infraestructura RabbitMQ
 **Relacionado:** `stack.md` §Mensajería
@@ -46,11 +57,14 @@ Salado) eventualmente satura throughput porque no hay paralelismo real por parti
 
 ## 5. Ambiguity Log
 
-- [ ] Mecanismo concreto: ¿consistent-hash exchange plugin de RabbitMQ, o N colas fijas con
-  routing key modulada por hash de `sensorId` en el binding? — **pendiente de decisión
-  humana, impacta si se necesita un plugin adicional en la imagen de RabbitMQ.**
-- [ ] Número de particiones default — **pendiente, depende de cuántos sensores se proyectan
-  a mediano plazo.**
+> Ítems **resueltos por el humano (2026-09-11)** y trazados en el Ambiguity Log de
+> `contracts/FIX-0005.md`; se conservan aquí como histórico.
+
+- [x] Mecanismo concreto: RESUELTO = consistent-hash exchange (`x-consistent-hash`) con binding
+  exchange-to-exchange desde `sensor.lecturas` y 4 colas fijas con peso `"1"`. Requiere
+  habilitar el plugin `rabbitmq_consistent_hash_exchange` (viene con la distribución de
+  RabbitMQ, no habilitado por defecto en `rabbitmq:3.13-management-alpine`) en compose e ITs.
+- [x] Número de particiones default: RESUELTO = **4** (configurable por entorno).
 
 ## 6. Completion Map
 
