@@ -7,31 +7,56 @@
 
 WR-Sensor es una plataforma de telemetría fluvial por **microservicios reactivos
 (Java 25 / Spring Boot 4.1 WebFlux)** con arquitectura hexagonal y mensajería
-RabbitMQ como columna vertebral. Los 4 servicios viven hoy como módulos Maven
-**standalone** (`services/<nombre>`, pom propio); el aggregator multi-módulo y
-docker-compose se formalizan en la fase de infraestructura.
+RabbitMQ como columna vertebral. Los 6 servicios viven como módulos Maven
+**standalone** (`services/<nombre>`, pom propio) y se orquestan con el aggregator
+`services/pom.xml` + `docker-compose.yml`.
 
 ### Diagrama de flujo de datos
 
 ```
-                  ┌──────────────────┐
-                  │  sensor-registry │  (CRUD de sensores + auth JWT)
-                  │  8080 · Postgres │
-                  └────────┬─────────┘
-                           │ GET /api/sensores/{id} (config: rangos/estado)
-                           ▼
-┌────────────────┐   publica   ┌──────────────────┐   persiste   ┌───────────────┐
-│ data-simulator │───────────▶ │ ingestion-service│────────────▶ │  TimescaleDB  │
-│ (generador)    │  sensor.    │ (consumer)       │  hypertable  │  (lectura)    │
-│                │  lecturas   │ evalúa severidad │  'lectura'   └───────────────┘
-└────────────────┘             └────────┬─────────┘
-                                        │ publica (cambios de severidad)
-                                        ▼
-                              ┌──────────────────────┐    push    ┌────────────┐
-                              │    alerting-service  │──────────▶ │ WebSocket  │
-                              │  (histéresis)        │ /ws/alertas│ clientes   │
-                              └──────────────────────┘            └────────────┘
+   clientes (dashboard / curl)                    ┌────────────────────┐
+            │ HTTPS/WS (puerto único 8084)        │  sensor-registry   │ CRUD + auth JWT
+            ▼                                     │  8080 · Postgres   │
+   ┌──────────────────┐  REST/WS  ┌──────────────▶└────────┬───────────┘
+   │   api-gateway    │───────────┤  8082 query-api (histórico/última/WS)
+   │  (FEAT-0007)     │           └──────────────▶ 8083 alerting-service (WS /ws/alertas)
+   │  rate limit +    │
+   │  correlación     │        red interna de Compose (sin puertos publicados)
+   └──────────────────┘
+                                  ┌────────────────┐   publica   ┌──────────────────┐
+                                  │ data-simulator │───────────▶ │ ingestion-service│
+                                  │ (generador)    │  sensor.    │ (consumer)       │
+                                  └────────────────┘  lecturas   └────────┬─────────┘
+                                                                          │ persiste (hypertable 'lectura')
+                                                                          ▼  TimescaleDB
+                                                                          │ publica (cambios de severidad)
+                                                                          ▼  sensor.alertas → alerting-service
 ```
+
+**Topología de puertos (FEAT-0007 BR-012):** sólo `api-gateway` (:8084) publica puerto al
+host. `sensor-registry`, `query-api`, `alerting-service`, `data-simulator` e
+`ingestion-service` viven en la red interna de Compose; el acceso directo para debug se
+habilita con `docker-compose.dev.yml` (ver RUNBOOK §4). Los puertos de infraestructura
+(RabbitMQ, Postgres, Timescale, Redis) siguen publicados por ser herramientas de desarrollo.
+
+### Rutas del gateway (FEAT-0007)
+
+| Ruta | Patrón | Destino | Clase de límite |
+|---|---|---|---|
+| `registry-login` | `POST /api/auth/login` | `sensor-registry:8080` | `login` (10/60 s) |
+| `registry-auth` | `POST /api/auth/**` | `sensor-registry:8080` | `default` |
+| `registry-sensores-lectura` | `GET /api/sensores/**` | `sensor-registry:8080` | `lectura` (120/60 s) |
+| `registry-sensores-escritura` | `POST/PUT/DELETE /api/sensores/**` | `sensor-registry:8080` | `default` (300/60 s) |
+| `query-lecturas` | `GET /api/sensores/*/lecturas` | `query-api:8082` | `lectura` |
+| `query-actual` | `GET /api/sensores/*/actual` | `query-api:8082` | `lectura` |
+| `ws-alertas` | `/ws/alertas` (upgrade) | `alerting-service:8083` | `ws` (30/60 s) |
+| `ws-sensores` | `/ws/sensores/**` (upgrade) | `query-api:8082` | `ws` |
+
+Gana siempre el **patrón más específico** (`PathPattern.SPECIFICITY_COMPARATOR`), que es lo
+que permite que `/api/sensores/{id}/lecturas` vaya a `query-api` mientras el resto de
+`/api/sensores/**` va al registry. Cualquier path no declarado responde
+`404 ROUTE_NOT_FOUND` sin fallback.
+
 
 ## 2. Contratos de mensajería (RabbitMQ)
 

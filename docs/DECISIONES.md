@@ -122,3 +122,32 @@ consumir sin particionar); cambiar `total` exige reinicio coordinado (sin rebala
 caliente) y la cola anterior `queue.sensor.lecturas` se retira con drenaje documentado. El
 mismo problema de afinidad existe si se escala `alerting-service` (estado de histéresis en
 memoria): queda como contrato futuro, junto con persistir la última severidad.
+
+## ADR-0016 · api-gateway propio en WebFlux: punto de entrada único, rate limiting y correlación (FEAT-0007)
+**Contexto:** los servicios expuestos publicaban puertos directos al host sin capa intermedia:
+sin protección de fuerza bruta en `POST /api/auth/login`, sin límite en los endpoints de
+lectura y sin un lugar donde generar correlación. El backlog lo había registrado como
+`FIX-0005` (`docs/FIX-0005-gateway-rate-limiting.md`), pero agrega **un componente nuevo** →
+se promocionó como `FEAT-0007` y el componente se llama `api-gateway` para no confundirlo con
+el `ingestion-gateway` de dispositivos de la spec §9.3.
+**Decisión (HO-Gate 2026-09-11):** gateway **propio en WebFlux** dentro del stack
+(`WebClient` para el proxy, `RouterFunction` + `WebFilter` para rutas y límites,
+`ReactorNettyWebSocketClient` + `HandshakeWebSocketService` para el túnel WS): cero
+dependencias nuevas, control total del `429` + `Retry-After` + body de dominio y builds
+offline intactos. Rate limiting **token bucket en memoria por clase + IP del peer**
+(`confiar-forwarded-for: false` por default, para que no se evada por header), límites
+moderados configurables (`login` 10/60 s, `lectura` 120/60 s, `default` 300/60 s, `ws`
+30/60 s) y correlación `X-Correlation-Id` propagada/generada, reflejada y logueada. Sólo el
+gateway publica puerto al host; el debug directo usa `docker-compose.dev.yml`.
+**Alternativas descartadas:** Spring Cloud Gateway (el starter no estaba en el `.m2` y había que
+resolver una release train compatible con Boot 4.1; igual exigía filtros propios para
+`Retry-After`/body) y Traefik (su middleware `rateLimit` genera el `429` sin `Retry-After` ni
+body configurable → incumplía el criterio y rompía la convención `{"code","message"}`).
+**Consecuencias:** el prefijo `/api/sensores` está compartido entre registry y query-api, así que
+el ruteo debe ser **por patrón más específico** y el `RouterFunction` ordenarse en consecuencia
+(resuelve por primer match); `exchangeToMono` libera la respuesta al completar, por lo que el body
+del downstream se materializa dentro del exchange (payloads JSON chicos; el streaming queda para
+WS); el gateway es un SPOF con errores de dominio explícitos (`502`/`504`) y nunca `500` crudo.
+**Brecha conocida y aceptada:** los WS de `alerting`/`query-api` no validan token
+(`SimpleUrlHandlerMapping` sin auth); el gateway tunela el upgrade sin agregar autenticación →
+work item propio junto con el frontend.

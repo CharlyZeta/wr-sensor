@@ -1,0 +1,72 @@
+server:
+  port: ${GATEWAY_PORT:8084}
+
+spring:
+  application:
+    name: api-gateway
+
+gateway:
+  # FEAT-0007 BR-001/BR-002: rutas declaradas (id, patron, metodos, destino, clase-limite,
+  # timeout-ms). Las rutas bajo /ws/ se tunelan como WebSocket (BR-011). Gana el patron mas
+  # especifico: /api/sensores/*/lecturas → query-api vs /api/sensores/** → sensor-registry.
+  rutas:
+    - id: registry-login
+      patron: /api/auth/login
+      metodos: [POST]
+      destino: ${REGISTRY_URL:http://sensor-registry:8080}
+      clase-limite: login
+      timeout-ms: 10000
+    - id: registry-auth
+      patron: /api/auth/**
+      metodos: [POST]
+      destino: ${REGISTRY_URL:http://sensor-registry:8080}
+      clase-limite: default
+      timeout-ms: 10000
+    - id: registry-sensores-lectura
+      patron: /api/sensores/**
+      metodos: [GET]
+      destino: ${REGISTRY_URL:http://sensor-registry:8080}
+      clase-limite: lectura
+      timeout-ms: 10000
+    - id: registry-sensores-escritura
+      patron: /api/sensores/**
+      metodos: [POST, PUT, DELETE]
+      destino: ${REGISTRY_URL:http://sensor-registry:8080}
+      clase-limite: default
+      timeout-ms: 10000
+    - id: query-lecturas
+      patron: /api/sensores/*/lecturas
+      metodos: [GET]
+      destino: ${QUERY_API_URL:http://query-api:8082}
+      clase-limite: lectura
+      timeout-ms: 10000
+    - id: query-actual
+      patron: /api/sensores/*/actual
+      metodos: [GET]
+      destino: ${QUERY_API_URL:http://query-api:8082}
+      clase-limite: lectura
+      timeout-ms: 10000
+    - id: ws-alertas
+      patron: /ws/alertas
+      destino: ${ALERTING_URL:http://alerting-service:8083}
+      clase-limite: ws
+      timeout-ms: 10000
+    - id: ws-sensores
+      patron: /ws/sensores/**
+      destino: ${QUERY_API_URL:http://query-api:8082}
+      clase-limite: ws
+      timeout-ms: 10000
+
+  # FEAT-0007 BR-003/BR-004: valores default moderados, todos configurables por entorno.
+  rate-limit:
+    confiar-forwarded-for: ${GATEWAY_CONFIAR_XFF:false}
+    expiracion-segundos: ${GATEWAY_RL_EXPIRACION:300}
+    clases:
+      default: { peticiones: 300, ventana-segundos: 60, burst: 100 }
+      login:   { peticiones: 10,  ventana-segundos: 60, burst: 10 }
+      lectura: { peticiones: 120, ventana-segundos: 60, burst: 60 }
+      ws:      { peticiones: 30,  ventana-segundos: 60, burst: 30 }
+
+logging:
+  level:
+    com.wrsensor.gateway: INFO

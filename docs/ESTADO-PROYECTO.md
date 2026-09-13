@@ -139,6 +139,36 @@ preservada.
 | `DeactivateSensorServiceTest` | 3 ✅ | BR-002/004/005 (404, UPDATE INACTIVO, no-op idempotente) |
 
 **Suite `sensor-registry` actual (2026-09-09): 89 unit/assert + 34 ITs = 123 verdes.**
+### 2j. `FEAT-0007` (RESOLVED 2026-09-13) — `api-gateway`: entrada única, rate limiting y correlación
+
+Origen: `docs/FIX-0005-gateway-rate-limiting.md` (backlog), revisado en Gate y promocionado a
+`contracts/FEAT-0007.md`: agrega un **componente nuevo**, así que va por la serie FEAT y no por
+FIX (además `contracts/FIX-0005` ya estaba usado por el particionamiento).
+
+- **Problema**: los servicios publicaban puertos directos al host, sin capa intermedia: sin
+  protección de fuerza bruta en `POST /api/auth/login`, sin límite en los endpoints de lectura y
+  sin un lugar donde generar correlación.
+- **Solución**: gateway propio en **WebFlux** (sin dependencias nuevas) que enruta REST y
+  WebSocket por **patrón más específico** (`/api/sensores/{id}/lecturas` → query-api, el resto de
+  `/api/sensores/**` → registry), aplica **rate limiting token bucket** por clase + IP del peer
+  (`login` 10/60 s · `lectura` 120/60 s · `default` 300/60 s · `ws` 30/60 s, todos configurables),
+  devuelve `429` con `Retry-After` y body `{"code","message"}`, garantiza `X-Correlation-Id`
+  (propagado o generado + log de acceso) y mapea fallas de upstream a `502`/`504` (nunca `500`).
+- **Operación**: sólo el gateway publica puerto (:8084); el debug directo usa
+  `docker-compose.dev.yml`. Rutas, límites y `timeout-ms` en `application.yml` con overrides por
+  entorno (`GATEWAY_PORT`, `GATEWAY_RL_EXPIRACION`, `GATEWAY_CONFIAR_XFF`), documentados en
+  `docs/RUNBOOK.md` §4.
+- **Fuera de alcance (decidido en HO-Gate)**: autenticación de WebSocket (los WS de
+  `alerting`/`query-api` no validan token: brecha documentada en ADR-0016), auth en el gateway
+  (sigue en `sensor-registry`), rate limiting distribuido con Redis, TLS/CORS y circuit breaker
+  (es el ítem `docs/FIX-0007-circuit-breaker.md`).
+- **Bugs reales corregidos durante el Loop**: el `RouterFunction` resuelve por primer match (había
+  que ordenar por especificidad); `exchangeToMono` libera la respuesta al completar (el body
+  proxeado salía vacío); y la estrategia de upgrade WS auto-suscribe el handler (el túnel se
+  cerraba tras el handshake).
+- **Evidencia**: `contracts/FEAT-0007.md` (33/33 ✅), auditoría
+  `.sdd/runs/FEAT-0007-20260913-134500.md`, ADR-0016, suites **31 unit + 16 IT = 47**.
+
 ### 2i. `FIX-0005` (RESOLVED 2026-09-11) — particionamiento del consumo por `sensorId`
 
 Origen: `docs/FIX-0006-particionamiento-consumers.md` (backlog), refinado en Gate y
@@ -245,12 +275,12 @@ Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idemp
 >   `contracts/FIX-0005.md`** (Gate EXPRESS 2026-09-11, Loop completado 2026-09-11, 23/23 ✅;
 >   Ambiguity Log resuelto: consistent-hash exchange + binding e2e, 4 particiones, estado de
 >   severidad fuera de alcance).
-> - `docs/FIX-0005-gateway-rate-limiting.md` → **PROMOCIONADO como `contracts/FEAT-0007.md`**
->   (Gate EXPRESS 2026-09-11, pendiente HO-Gate). Cambia de serie porque agrega un componente
->   nuevo (`api-gateway`); decisiones humanas: gateway propio en WebFlux, cerrar los puertos de
->   servicios detrás del gateway con `docker-compose.dev.yml` para debug, límites moderados
->   (login 10/60 s, lectura 120/60 s, default 300/60 s, WS 30/60 s) y auth de WebSocket fuera de
->   alcance (brecha documentada).
+> - `docs/FIX-0005-gateway-rate-limiting.md` → **PROMOCIONADO y RESUELTO como
+>   `contracts/FEAT-0007.md`** (Gate EXPRESS 2026-09-11, Loop completado 2026-09-13, 33/33 ✅).
+>   Cambia de serie porque agrega un componente nuevo (`api-gateway`); decisiones humanas:
+>   gateway propio en WebFlux, cerrar los puertos de servicios detrás del gateway con
+>   `docker-compose.dev.yml` para debug, límites moderados (login 10/60 s, lectura 120/60 s,
+>   default 300/60 s, WS 30/60 s) y auth de WebSocket fuera de alcance (brecha documentada).
 > - Próximo ID libre tras `FIX-0005` / `FEAT-0007`: `FIX-0006` / `FEAT-0008`.
 
 > Nota de gobernanza: existe **colisión de ID** entre `contracts/FIX-0002.md` (RESOLVED) y

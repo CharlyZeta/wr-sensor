@@ -1,6 +1,23 @@
 # WR-Sensor — API (registro actual)
 
 Convención: errores `{"code","message"}`. Auth (FEAT-0006): `Authorization: Bearer <jwt>`
+
+**Punto de entrada único (FEAT-0007):** todos los endpoints de esta página se consumen a través
+del `api-gateway` (`http://localhost:8084`), que enruta al servicio dueño, aplica rate limiting
+por IP y propaga/genera `X-Correlation-Id`. Las rutas y la tabla de límites están en
+`docs/ARQUITECTURA.md` §1; el acceso directo a cada servicio (para debug) requiere
+`docker-compose.dev.yml`.
+
+Códigos propios del gateway:
+
+| HTTP | code | Cuándo |
+|---|---|---|
+| `429` | `RATE_LIMIT_EXCEEDED` | cupo de la clase agotado (con `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`) |
+| `404` | `ROUTE_NOT_FOUND` | path no declarado en la tabla de rutas |
+| `502` | `UPSTREAM_UNAVAILABLE` | servicio destino caído (REST) o handshake WS imposible |
+| `504` | `UPSTREAM_TIMEOUT` | el destino no respondió dentro de `timeout-ms` de la ruta |
+| `426` | `WS_UPGRADE_REQUIRED` | request sin upgrade a una ruta `/ws/**` |
+
 obtenido en `POST /api/auth/login`. El header literal `Bearer ADMIN` **ya no es
 válido** (AC-008 FEAT-0006).
 

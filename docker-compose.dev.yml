@@ -1,0 +1,19 @@
+# Override de DESARROLLO (FEAT-0007 BR-012): por default los servicios de aplicación NO
+# publican puertos al host — sólo `api-gateway`. Para debug directo (curl a cada servicio,
+# Swagger, pruebas manuales del simulador) levantar el stack así:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# Advertencia: este override vuelve a exponer los servicios fuera de la red interna, es decir
+# anula la protección que aporta el punto de entrada único (incluido el rate limiting).
+name: wrsensor
+
+services:
+  sensor-registry:
+    ports: ["8080:8080"]
+  data-simulator:
+    ports: ["8081:8081"]
+  query-api:
+    ports: ["8082:8082"]
+  alerting-service:
+    ports: ["8083:8083"]

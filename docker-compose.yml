@@ -56,9 +56,10 @@ services:
       retries: 10
 
   # ===== Servicios (requieren `mvn -o install -DskipTests` previo en services/) =====
+  # FEAT-0007 BR-012: solo api-gateway publica puerto al host. Para debug directo usar
+  # docker-compose.dev.yml (ver docs/RUNBOOK.md).
   sensor-registry:
     build: ./services/sensor-registry
-    ports: ["8080:8080"]
     environment:
       R2DBC_URL: r2dbc:postgresql://postgres-metadata:5432/wrsensor
       R2DBC_USER: wrsensor
@@ -74,7 +75,6 @@ services:
 
   data-simulator:
     build: ./services/data-simulator
-    ports: ["8081:8081"]
     environment:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
@@ -108,7 +108,6 @@ services:
 
   alerting-service:
     build: ./services/alerting-service
-    ports: ["8083:8083"]
     environment:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
@@ -119,7 +118,6 @@ services:
 
   query-api:
     build: ./services/query-api
-    ports: ["8082:8082"]
     environment:
       QUERY_R2DBC_URL: r2dbc:postgresql://timescaledb:5432/wrsensor_ingestion
       R2DBC_USER: wrsensor
@@ -132,6 +130,20 @@ services:
     depends_on:
       timescaledb: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
+
+  # Punto de entrada unico (FEAT-0007): enruta REST y WS, aplica rate limiting y correlacion.
+  api-gateway:
+    build: ./services/api-gateway
+    ports: ["8084:8084"]
+    environment:
+      REGISTRY_URL: http://sensor-registry:8080
+      QUERY_API_URL: http://query-api:8082
+      ALERTING_URL: http://alerting-service:8083
+      GATEWAY_CONFIAR_XFF: ${GATEWAY_CONFIAR_XFF:-false}
+    depends_on:
+      sensor-registry: { condition: service_started }
+      query-api: { condition: service_started }
+      alerting-service: { condition: service_started }
 
 volumes:
   pg-metadata:

@@ -35,7 +35,7 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 & …\mvn.cmd -o test -Dtest='FEAT0011MainFlowIT'
 ```
 
-### Resumen de suites (verde al 2026-09-11)
+### Resumen de suites (verde al 2026-09-13)
 
 | Módulo | Unit/assert | ITs | Total |
 |---|---|---|---|
@@ -44,7 +44,8 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 45 | 21 | 66 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 7 | 1 | 8 |
-| **Total** | **164** | **59** | **223** |
+| `api-gateway` | 31 | 16 | 47 |
+| **Total** | **195** | **75** | **270** |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
 > `mvn -o test -Dtest='*IT'` y requieren Docker Desktop.
@@ -67,14 +68,48 @@ Orquestación local (docker-compose.yml raíz):
    `maven-jar-plugin`): `cd services` → `mvn -o install -DskipTests` (o sin `-o`
    la primera vez).
 2. `cd ..` → `docker compose up -d --build`
-3. `docker compose ps` — servicios: registry :8080, simulator :8081, query-api
-   :8082 (REST + WS), alerting :8083 (WS), más postgres/timescale/redis/rabbitmq.
+3. `docker compose ps` — **sólo `api-gateway` publica puerto** (:8084, FEAT-0007): REST y WS
+   entran por ahí. Los demás servicios (registry :8080, simulator :8081, query-api :8082,
+   alerting :8083, ingestion) quedan en la red interna de Compose.
 4. `docker compose down -v` para reinicio limpio (borra volúmenes).
+
+### Acceso directo para desarrollo (FEAT-0007)
+
+El default cierra los puertos de los servicios de aplicación (punto de entrada único +
+rate limiting). Para debug directo — curl a cada servicio, probar el simulador sin pasar por
+el gateway, inspeccionar un WS — usar el override:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Ese override (`docker-compose.dev.yml`) republica :8080/:8081/:8082/:8083 y **anula** la
+protección del punto de entrada único: no usarlo fuera de la máquina de desarrollo.
+
+### Ajustar el gateway (límites, rutas, timeouts)
+
+Todo es configuración, sin recompilar:
+
+```powershell
+# límites más estrictos para login y ventana de lectura larga, vía entorno
+$env:GATEWAY_RL_EXPIRACION = "600"          # segundos que sobrevive una clave inactiva
+$env:GATEWAY_CONFIAR_XFF   = "false"        # true = usar X-Forwarded-For como clave (sólo tras un proxy confiable)
+docker compose up -d api-gateway
+```
+
+Los valores por clase (`default` 300/60 s burst 100, `login` 10/60 s burst 10,
+`lectura` 120/60 s burst 60, `ws` 30/60 s burst 30), las rutas y los `timeout-ms` viven en
+`services/api-gateway/src/main/resources/application.yml`. Verificación rápida del límite:
+
+```powershell
+1..12 | % { (Invoke-WebRequest -Method POST http://localhost:8084/api/auth/login -SkipHttpErrorCheck).StatusCode }
+# → diez 200 y luego 429 con Retry-After
+```
 
 También se puede ejecutar un servicio suelto con Spring Boot para debug:
 
 ```powershell
-cd D:\ProyectosDual\WR-Sensor\services\sensor-registry
+cd D:\ProyectosDual\WR-Sensor\services\api-gateway
 $env:JAVA_HOME = "C:\Program Files\Amazon Corretto\jdk25.0.3_9"
 & …\mvn.cmd -o spring-boot:run
 ```
@@ -82,10 +117,10 @@ $env:JAVA_HOME = "C:\Program Files\Amazon Corretto\jdk25.0.3_9"
 Flujo de prueba end-to-end manual:
 
 ```powershell
-# 1) login (registry) → token
+# 1) login (registry) → token   (POST http://localhost:8084/api/auth/login)
 # 2) alta de sensor (POST /api/sensores) o usar seeds
-# 3) simulator: POST /api/simulador/iniciar  → publica sensor.lecturas
-# 4) ingestion consume y persiste; alerting notifica por ws://localhost:<puerto>/ws/alertas
+# 3) simulator: POST /api/simulador/iniciar  → publica sensor.lecturas (vía override de dev)
+# 4) ingestion consume y persiste; alerting notifica por ws://localhost:8084/ws/alertas
 ```
 
 ## 5. Escalado horizontal de `ingestion-service` (FIX-0005)

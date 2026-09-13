@@ -41,8 +41,9 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | `ingestion-service` | 45 | 21 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
 | `query-api` | 7 | 1 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 |
+| `api-gateway` | 31 | 16 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · IT `FEAT0007MainFlowIT` 16 |
 
-**Total: 164 unit/assert + 59 ITs = 223 verdes** (JUnit 5, AssertJ, StepVerifier,
+**Total: 195 unit/assert + 75 ITs = 270 verdes** (JUnit 5, AssertJ, StepVerifier,
 WebTestClient, Testcontainers — Maven offline). Los `*IT` se corren aparte:
 `mvn -o test -Dtest='*IT'`.
 

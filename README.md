@@ -6,7 +6,7 @@ con **Spec-Driven Development Gate/Loop (SDD-GL)**. Cada funcionalidad nace como
 humana (HO-Gate) y luego un Loop autónomo de implementación + tests hasta
 `RESOLVED`.
 
-> Estado al **2026-09-11**: 15 Work Items cerrados (~90% del roadmap v1).
+> Estado al **2026-09-13**: 16 Work Items cerrados (~95% del roadmap v1).
 
 ---
 
@@ -44,21 +44,23 @@ realtime por WebSocket — orquestado con **Spec-Driven Development Gate/Loop
 (SDD-GL)**.
 
 ```
+clientes ─HTTP/WS→ api-gateway (rate limiting + correlación) ─→ registry · query-api · alerting
 data-simulator ─sensor.lecturas→ ingestion-service ─sensor.alertas→ alerting-service ─WS→ clientes
 sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico keyset + última lectura + WS por sensor
 ```
 
 | Servicio | Rol | Notas de arquitectura |
 |---|---|---|
+| `api-gateway` | punto de entrada único | hex · WebFlux `WebClient`/`RouterFunction` · rate limiting token bucket por clase+IP · `X-Correlation-Id` · túnel WS |
 | `sensor-registry` | CRUD + auth | hex · R2DBC Postgres · guards por atributo de exchange (ADR-0006) · naive-UTC |
 | `data-simulator` | lecturas sintéticas | hex · Reactor RabbitMQ · stateless |
-| `ingestion-service` | consume + severidad + persistencia | hex · R2DBC **TimescaleDB** hypertable · DLQ/DLX configurable |
+| `ingestion-service` | consume + severidad + persistencia | hex · R2DBC **TimescaleDB** hypertable · DLQ/DLX configurable · consumo particionado |
 | `alerting-service` | histéresis + notificación | hex · debounce temporal · WebSocket `/ws/alertas` |
 | `query-api` | consulta histórica/última/tiempo real | hex · R2DBC lectura · consumer `sensor.lecturas` → WS por sensor |
 
 Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
 paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
-`application.yml`, tests trazables a los contracts (BR/AC/AF) — **223 verdes**.
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **270 verdes**.
 Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 
 ## 3. Documentación (índice)
@@ -96,10 +98,11 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FIX-0003` | Outbox + idempotencia en ingestion | ✅ RESOLVED | 13 · IT 8 |
 | `FIX-0004` | Rango físico + calidad del dato | ✅ RESOLVED | 22 · IT 6 |
 | `FIX-0005` | Particionamiento del consumo por `sensorId` | ✅ RESOLVED | 20 · IT 7 |
+| `FEAT-0007` | `api-gateway`: entrada única + rate limiting | ✅ RESOLVED | 31 · IT 16 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 14 · `ingestion-service` 66 ·
-`alerting-service` 12 · `query-api` 8 → **223 tests** (JUnit 5; ITs con Testcontainers;
-detalle por módulo en `docs/RUNBOOK.md` §2).
+`alerting-service` 12 · `query-api` 8 · `api-gateway` 47 → **270 tests** (JUnit 5; ITs con
+Testcontainers; detalle por módulo en `docs/RUNBOOK.md` §2).
 
 ---
 

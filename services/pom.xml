@@ -21,5 +21,6 @@
         <module>ingestion-service</module>
         <module>alerting-service</module>
         <module>query-api</module>
+        <module>api-gateway</module>
     </modules>
 </project>
