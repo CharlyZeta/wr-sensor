@@ -1,7 +1,22 @@
 # FIX-0005 — API Gateway y rate limiting delante de los servicios expuestos
 
-**Status:** DRAFT
-**Mode:** GATE
+> **PROMOCIONADO (2026-09-11):** este doc de backlog fue revisado en Gate y promocionado como
+> **`contracts/FEAT-0007.md`** (Status: DRAFT / Mode: GATE). Motivo del cambio de serie: agrega
+> un **componente nuevo** (`api-gateway`), así que corresponde `sdd-feature`/FEAT, no FIX; y
+> el ID se reasigna porque `contracts/FIX-0005` ya está usado (particionamiento).
+> Defectos corregidos en la promoción: (1) BR-04 (`Retry-After`) no es satisfacible con el
+> middleware `rateLimit` de Traefik → se decidió gateway propio en WebFlux; (2) AC-05 no
+> verificaba nada del gateway y BR-06 ya estaba violada por `data-simulator` (publica 8081) →
+> pasó a criterio de topología completa (BR-012/AC-001); (3) BR-05 (correlationId) no tenía AC y
+> citaba `FIX-0009`, que no existe → BR-008 con AC propio; (4) AC-04 no era verificable ("sin
+> fricción perceptible") → criterios de frontera; (5) el prefijo `/api/sensores` está compartido
+> entre registry y query-api → hace falta ruteo por patrón más específico (BR-002/AC-002);
+> (6) faltaba el caso "downstream caído" (el gateway es SPOF) → BR-009/AC-009; (7) los WebSocket
+> de `alerting`/`query-api` no tienen auth hoy → brecha documentada, fuera de alcance.
+> Este archivo queda como registro histórico del backlog.
+
+**Status:** PROMOCIONADO a `contracts/FEAT-0007.md`
+**Mode:** GATE (histórico)
 **Servicio(s) afectado(s):** infraestructura (nuevo componente `gateway`), `sensor-registry`,
 `query-api`
 **Relacionado:** `docker-compose.yml`, FEAT-0006 (auth JWT)
