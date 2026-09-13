@@ -1,6 +1,27 @@
 # FIX-0002 — Versionado y enriquecimiento del schema de `sensor.lecturas`
 
-**Status:** DRAFT **Mode:** GATE **Servicio(s) afectado(s):** `data-simulator` (publisher), `ingestion-service` (consumer), `sensor-registry` (referencia de contrato) **Relacionado:** `stack.md` §Mensajería, FEAT-0010, FEAT-0011 **Depende de:** ninguno
+> **PROMOCIONADO (2026-09-13):** este doc de backlog fue revisado en Gate y promocionado como
+> **`contracts/FIX-0006.md`** (Status: DRAFT / Mode: GATE). Se **renumera** porque
+> `contracts/FIX-0002` es el parser de `sensor.alertas`, y porque las dependencias que este doc
+> declaraba (`FIX-0003` outbox/idempotencia y `FIX-0004` rango físico) ya están RESOLVED.
+> Defectos corregidos en la promoción: (1) el alcance de servicios estaba mal — **`query-api`
+> también consume `sensor.lecturas`** (`LecturasRealtimeConsumer`) y `sensor-registry` **no**
+> participa de ese evento; (2) BR-06 (`dispositivo`: firmware/batería/RSSI) inventaba hardware
+> inexistente → fuera de alcance; (3) BR-07/AC-05 hacían *fail-closed* ante una versión
+> desconocida, lo que permite que un publisher más nuevo tumbe la ingesta → se adoptó
+> **tolerancia hacia adelante + WARN** (configurable para endurecer); (4) BR-03 (`sequence`) no
+> tenía consumidor → ahora se persiste y se detectan huecos con WARN; (5) BR-04 (`timestampUtc`)
+> renombraba un campo que ya cumple el requisito (ISO-8601 con `Z`) sin aportar valor → se
+> mantiene `timestamp`; (6) BR-05 introducía `SOSPECHOSA`/`confianza` sin semántica en el dominio
+> → la marca de calidad es informativa y el enum sigue siendo `OK | ERROR_SENSOR` (FIX-0004);
+> (7) no se decía que los consumers parsean con **regex** — el verdadero riesgo del versionado —,
+> así que el contrato migra ambos al DTO con Jackson (ya disponible, sin dependencias nuevas);
+> y (8) la ventana de compatibilidad quedó **indefinida con telemetría** en lugar de una fecha
+> arbitraria.
+> Este archivo queda como registro histórico del backlog.
+
+**Status:** PROMOCIONADO a `contracts/FIX-0006.md`
+**Mode:** GATE (histórico)
 
 ## 1\. Contexto
 

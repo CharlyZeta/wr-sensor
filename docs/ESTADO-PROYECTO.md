@@ -285,12 +285,15 @@ Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idemp
 >   gateway propio en WebFlux, cerrar los puertos de servicios detrás del gateway con
 >   `docker-compose.dev.yml` para debug, límites moderados (login 10/60 s, lectura 120/60 s,
 >   default 300/60 s, WS 30/60 s) y auth de WebSocket fuera de alcance (brecha documentada).
-> - **Pendientes reales del backlog**: `docs/FIX-0002-schema-versionado-lecturas.md` (versionado
->   del payload → al promocionarse será **`contracts/FIX-0006.md`**, porque `contracts/FIX-0002`
->   es el parser de alertas) y `docs/FIX-0007-circuit-breaker.md` (circuit breaker de ingestion
->   hacia registry → próximo ID libre tras `FIX-0006`).
-> - **Follow-ups nacidos de los fixes** (sin doc de backlog todavía): auth de WebSocket y CORS
->   (FEAT-0007), persistir `ultimaSeveridad` y afinidad de `alerting-service` (FIX-0005).
+> - **Pendientes reales del backlog**: `docs/FIX-0007-circuit-breaker.md` (circuit breaker de
+>   ingestion hacia registry → próximo ID libre tras `FIX-0006`), y los follow-ups sin doc todavía:
+>   auth de WebSocket y CORS (FEAT-0007), persistir `ultimaSeveridad` y afinidad de
+>   `alerting-service` (FIX-0005).
+> - `docs/FIX-0002-schema-versionado-lecturas.md` → **PROMOCIONADO como `contracts/FIX-0006.md`**
+>   (Gate EXPRESS 2026-09-13, pendiente HO-Gate): renumerado porque `contracts/FIX-0002` es el
+>   parser de alertas. Decisiones humanas: consumers migrados a DTO + Jackson, tolerancia hacia
+>   adelante ante versión desconocida (configurable), `sequence` persistida con detección de
+>   huecos, `calidad` informativa sin `SOSPECHOSA` y sin metadata de dispositivo.
 
 > Nota de gobernanza: existe **colisión de ID** entre `contracts/FIX-0002.md` (RESOLVED) y
 > `docs/FIX-0002-schema-versionado-lecturas.md`, y entre los docs de backlog `FIX-0005..0007`
