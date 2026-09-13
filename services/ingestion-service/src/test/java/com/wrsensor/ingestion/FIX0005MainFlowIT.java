@@ -307,7 +307,8 @@ class FIX0005MainFlowIT {
 
     private IngestionProperties conParticiones(IngestionProperties.Particiones p) {
         return new IngestionProperties(props.ventanaSegundos(), props.registry(), props.lecturas(),
-                props.alertas(), props.messaging(), props.outbox(), props.rangoFisico(), p);
+                props.alertas(), props.messaging(), props.outbox(), props.rangoFisico(), p,
+                props.schema());
     }
 
     private void publicar(UUID sensor, String valor, String ts) throws IOException {

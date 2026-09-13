@@ -57,7 +57,8 @@ class IngestorLecturasTest {
                             "METROS", new IngestionProperties.RangoFisico.Rango(new BigDecimal("-1.0"), new BigDecimal("15.0")),
                             "CENTIMETROS", new IngestionProperties.RangoFisico.Rango(new BigDecimal("-100"), new BigDecimal("1500"))),
                     java.util.Map.of("SALADO-SANJUSTO", new IngestionProperties.RangoFisico.Rango(new BigDecimal("0.0"), new BigDecimal("8.0")))),
-            new IngestionProperties.Particiones(4, null, "sensor.lecturas.part", "queue.sensor.lecturas.p{i}"));
+            new IngestionProperties.Particiones(4, null, "sensor.lecturas.part", "queue.sensor.lecturas.p{i}"),
+            new IngestionProperties.Schema(null, null));
 
     private static final class FakeSensores implements SensorConfigPort {
         SensorInfo found = ACTIVO;

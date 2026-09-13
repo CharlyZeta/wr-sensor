@@ -1,6 +1,7 @@
 package com.wrsensor.queryapi.infrastructure.adapter.in.messaging;
 
 import com.wrsensor.queryapi.domain.LecturaConsulta;
+import com.wrsensor.queryapi.domain.VersionSchema;
 import com.wrsensor.queryapi.infrastructure.realtime.LecturaRealtimeBus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,6 +74,7 @@ public class LecturasRealtimeConsumer {
             LecturaConsulta l = parseLectura(d.getBody());
             bus.publicar(l);
         } catch (RuntimeException e) {
+            // BR-009: el descarte deja evidencia con el motivo (antes era un mensaje genérico)
             log.warn("[query] lectura realtime descartada: {}", e.getMessage());
         }
     }
@@ -85,22 +87,57 @@ public class LecturasRealtimeConsumer {
         }
     }
 
-    private static final Pattern P_SENSOR = Pattern.compile("\"sensorId\":\"([0-9a-fA-F-]{36})\"");
-    private static final Pattern P_TS = Pattern.compile("\"timestamp\":\"([^\"]+)\"");
-    private static final Pattern P_VALOR = Pattern.compile("\"valor\":(-?\\d+(?:\\.\\d+)?)");
-    private static final Pattern P_UNIDAD = Pattern.compile("\"unidadMedida\":\"([A-Z_]+)\"");
+    // ============ parseo payload (FIX-0006 BR-006/BR-009: DTO + Jackson) ============
 
-    static LecturaConsulta parseLectura(byte[] body) {
-        String json = new String(body, StandardCharsets.UTF_8);
-        Matcher s = P_SENSOR.matcher(json);
-        Matcher t = P_TS.matcher(json);
-        Matcher v = P_VALOR.matcher(json);
-        Matcher u = P_UNIDAD.matcher(json);
-        if (!s.find() || !t.find() || !v.find() || !u.find()) {
+    private static final tools.jackson.databind.json.JsonMapper MAPPER =
+            tools.jackson.databind.json.JsonMapper.builder()
+                    .disable(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .build();
+
+    /** Versiones mayores ya avisadas (BR-007: un WARN por versión, no por evento). */
+    private static final java.util.Set<Integer> MAYORES_AVISADAS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public static LecturaConsulta parseLectura(byte[] body) {
+        LecturaMensaje m;
+        try {
+            m = MAPPER.readValue(body, LecturaMensaje.class);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("payload malformado: " + e.getMessage());
+        }
+        if (m == null || m.sensorId() == null || m.timestamp() == null || m.valor() == null
+                || m.unidadMedida() == null) {
             throw new IllegalArgumentException("payload incompleto");
         }
-        return new LecturaConsulta(UUID.fromString(s.group(1)), Instant.parse(t.group(1)),
-                new BigDecimal(v.group(1)), u.group(1), null, null); // severidad/calidad desconocidas en el stream realtime
+        avisarVersion(m.schemaVersion());
+        UUID sensorId;
+        Instant ts;
+        try {
+            sensorId = UUID.fromString(m.sensorId().trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("sensorId no es UUID: " + m.sensorId());
+        }
+        try {
+            ts = Instant.parse(m.timestamp().trim());
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("timestamp no es ISO-8601 con offset: " + m.timestamp());
+        }
+        String calidad = m.calidad() == null ? null : m.calidad().estado();
+        // severidad no viaja en `sensor.lecturas` (la calcula ingestion); el WS la deja null
+        return new LecturaConsulta(sensorId, ts, m.valor(), m.unidadMedida().trim(), null, calidad);
+    }
+
+    /** FIX-0006 BR-007: evidencia de versión desconocida sin romper el stream (tolerancia). */
+    private static void avisarVersion(String schemaVersion) {
+        var mayor = VersionSchema.mayorDe(schemaVersion);
+        if (mayor.isEmpty()) {
+            return;   // sin versión (legado) o mayor soportada: nada que avisar
+        }
+        if (mayor.getAsInt() > VersionSchema.mayorSoportada(null)
+                && MAYORES_AVISADAS.add(mayor.getAsInt())) {
+            log.warn("[query] schemaVersion mayor desconocida {}: se entrega igual por tolerancia "
+                    + "hacia adelante (aviso único por versión)", schemaVersion);
+        }
     }
 }
 

@@ -62,8 +62,51 @@ que permite que `/api/sensores/{id}/lecturas` vaya a `query-api` mientras el res
 
 | Exchange | Tipo | Routing key | Productor | Consumidor | Payload |
 |---|---|---|---|---|---|
-| `sensor.lecturas` | topic (durable) | `lectura.{sensorId}` | `data-simulator` (FEAT-0010) | `ingestion-service` (FEAT-0011) | `{sensorId, timestamp, valor, unidadMedida}` (FEAT-0010 BR-002) |
+| `sensor.lecturas` | topic (durable) | `lectura.{sensorId}` | `data-simulator` (FEAT-0010) | `ingestion-service` (FEAT-0011), `query-api` (FEAT-0013) | **v1** (FIX-0006, ver abajo) |
 | `sensor.alertas` | topic (durable) | `alerta.{severidad}` | `ingestion-service` (FEAT-0011) | `alerting-service` (FEAT-0012) | `{sensorId, timestamp, valorLectura, severidadAnterior, severidadNueva, cruceHisteresis}` |
+
+### Payload v1 de `sensor.lecturas` (FIX-0006)
+
+```json
+{
+  "schemaVersion": "1.0",
+  "eventId": "3f2a1b8e-…",
+  "sensorId": "a1b2…",
+  "timestamp": "2026-09-13T16:32:06.123Z",
+  "valor": 5.12,
+  "unidadMedida": "METROS",
+  "sequence": 42,
+  "calidad": { "estado": "OK", "confianza": 0.95, "codigosAnomalias": [] }
+}
+```
+
+- **Requeridos**: `sensorId`, `timestamp`, `valor`, `unidadMedida`. **Opcionales y tolerados**:
+  todo lo demás, **incluidos campos de versiones futuras** (los consumers ignoran propiedades
+  desconocidas).
+- `schemaVersion` (`MAYOR.MENOR`) es **configuración del publisher**
+  (`simulador.lecturas.schema-version`, default `1.0`), nunca una constante en los consumers.
+- `eventId` (UUID v4 por publicación) = trazabilidad + clave de idempotencia explícita
+  (`evt:<eventId>`, FIX-0003). `sequence` = contador creciente **por sensor** en el simulador,
+  que se reinicia al detener/reiniciar la simulación.
+- `calidad` es **informativa**: `estado ∈ {OK, ERROR_SENSOR}` (el enum vigente de FIX-0004),
+  `confianza ∈ [0,1]` (baja durante la anomalía inyectada) y `codigosAnomalias`
+  (`["ANOMALIA_INYECTADA"]` en esa ventana). Un evento con `estado = ERROR_SENSOR` se persiste
+  con esa calidad y **sin** severidad ni alerta; `SOSPECHOSA` no existe.
+- `timestamp` se mantiene con ese nombre y siempre es ISO-8601 **con offset** (`Instant`/`Z`);
+  un timestamp naive se rechaza (`PAYLOAD_INVALID`).
+
+### Política de evolución y versiones (FIX-0006)
+
+| Caso | Comportamiento |
+|---|---|
+| Sin `schemaVersion` (payload plano previo a FIX-0006) | **legado `0.0`**: se procesa igual; se registra INFO de evento legado con contador (ventana de compatibilidad **indefinida**, medida para poder cerrarla con datos) |
+| `schemaVersion` con mayor igual a la soportada (`1.x`) | se procesa; sin avisos |
+| Mayor **desconocida** (`2.0`, `9.x`) | **se procesa** con WARN (una sola vez por versión): tolerancia hacia adelante — un publisher más nuevo no tumba la ingesta. Con `ingestion.schema.tolerar-versiones-mayores: false` se rechaza a la DLQ con `SCHEMA_UNSUPPORTED` |
+| `schemaVersion` no interpretable (`"uno"`) o campos requeridos ausentes | rechazo `PAYLOAD_INVALID` (DLQ en ingestion; descarte logueado en query-api) |
+
+Ambos consumers de `sensor.lecturas` (`ingestion-service` y `query-api`) parsean con **DTO +
+Jackson** tolerante a propiedades desconocidas: el `schemaVersion` se resuelve de verdad y no por
+casualidad de una expresión regular.
 
 - **Colas**: `queue.sensor.alertas` (bind `alerta.#`), durable. Las lecturas **no** se
   consumen de una cola única: `ingestion-service` las consume **particionadas por

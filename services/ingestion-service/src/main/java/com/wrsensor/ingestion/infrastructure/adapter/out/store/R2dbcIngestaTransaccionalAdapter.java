@@ -27,8 +27,8 @@ public class R2dbcIngestaTransaccionalAdapter implements IngestaTransaccionalPor
             """;
 
     private static final String INSERT_LECTURA = """
-            INSERT INTO lectura (sensor_id, ts, valor, unidad_medida, severidad, calidad)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO lectura (sensor_id, ts, valor, unidad_medida, severidad, calidad, secuencia)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             """;
 
     private static final String INSERT_OUTBOX = """
@@ -64,6 +64,10 @@ public class R2dbcIngestaTransaccionalAdapter implements IngestaTransaccionalPor
                     insert = lectura.severidad() == null
                             ? insert.bindNull(4, String.class)   // FIX-0004: ERROR_SENSOR no evaluada
                             : insert.bind(4, lectura.severidad().name());
+                    // FIX-0006 BR-008: secuencia del emisor (NULL en payload legado)
+                    insert = lectura.secuencia() == null
+                            ? insert.bindNull(6, Long.class)
+                            : insert.bind(6, lectura.secuencia());
                     return insert
                             .fetch().rowsUpdated()
                             .then(outbox == null

@@ -48,6 +48,13 @@ ingestion:
     # overrides:
     #   PARANA-RECONQUISTA: { min: 0.0, max: 8.0 }
 
+  # FIX-0006: version del schema del evento (BR-001/BR-006/BR-007). Tolerancia hacia adelante
+  # por default: una version mayor desconocida se procesa con WARN; con false se rechaza a la
+  # DLQ con motivo SCHEMA_UNSUPPORTED.
+  schema:
+    version-soportada: ${INGESTION_SCHEMA_VERSION:1.0}
+    tolerar-versiones-mayores: ${INGESTION_SCHEMA_TOLERAR_MAYORES:true}
+
   # FIX-0003: publisher de outbox (nunca hardcodeado; BR-004..BR-008)
   outbox:
     intervalo-ms: 1000

@@ -22,5 +22,12 @@ public record SimuladorProperties(
 
     public record Anomalia(long segundos, BigDecimal saltoMetros) {}
 
-    public record Lecturas(String exchange) {}
+    /** FIX-0006 BR-001: la versión del schema es configuración del publisher. */
+    public record Lecturas(String exchange, String schemaVersion) {
+
+        public Lecturas {
+            schemaVersion = schemaVersion == null || schemaVersion.isBlank()
+                    ? "1.0" : schemaVersion.trim();
+        }
+    }
 }

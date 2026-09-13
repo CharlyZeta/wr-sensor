@@ -57,7 +57,7 @@ class SimuladorServiceTest {
                 new SimuladorProperties.Ruido(new BigDecimal("0")),
                 new SimuladorProperties.Anomalia(30, new BigDecimal("3.0")),
                 1,
-                new SimuladorProperties.Lecturas("sensor.lecturas"));
+                new SimuladorProperties.Lecturas("sensor.lecturas", "1.0"));
     }
 
     @BeforeEach

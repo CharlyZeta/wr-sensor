@@ -1,6 +1,7 @@
 package com.wrsensor.datasimulator.application.service;
 
 import com.wrsensor.datasimulator.application.port.out.LecturaPublisher;
+import com.wrsensor.datasimulator.domain.model.CalidadEmisor;
 import com.wrsensor.datasimulator.domain.model.Lectura;
 import com.wrsensor.datasimulator.domain.model.SensorSimulado;
 import com.wrsensor.datasimulator.domain.model.SimuladorException;
@@ -41,6 +42,8 @@ public class SimuladorService {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final Map<String, Instant> anomaliaHasta = new ConcurrentHashMap<>();
     private final Map<String, reactor.core.Disposable> generadores = new ConcurrentHashMap<>();
+    /** FIX-0006 BR-003: secuencia creciente por sensor (en memoria, se reinicia al detener). */
+    private final Map<String, AtomicLong> secuencias = new ConcurrentHashMap<>();
     private final AtomicLong publicadas = new AtomicLong(0);
 
     public SimuladorService(SimuladorProperties props, LecturaPublisher publisher) {
@@ -93,6 +96,7 @@ public class SimuladorService {
         generadores.keySet().forEach(this::detenerGenerador);
         generadores.clear();
         anomaliaHasta.clear();
+        secuencias.clear();   // FIX-0006 BR-003: al reiniciar, la secuencia arranca de nuevo en 1
         return estado();
     }
 
@@ -116,14 +120,20 @@ public class SimuladorService {
 
     private Lectura lecturaDe(SensorSimulado sensor) {
         Instant now = Instant.now();
-        BigDecimal salto = enAnomalia(sensor.codigo(), now)
-                ? props.anomalia().saltoMetros() : null;
+        boolean anomalia = enAnomalia(sensor.codigo(), now);
+        BigDecimal salto = anomalia ? props.anomalia().saltoMetros() : null;
         BigDecimal valor = ValorSintetico.valor(sensor, now,
                 props.ruido() == null || props.ruido().sigmaMetros() == null
                         ? new BigDecimal("0.05") : props.ruido().sigmaMetros(),
                 salto, ThreadLocalRandom.current().nextGaussian());
         publicadas.incrementAndGet();
-        return new Lectura(idDe(sensor.codigo()), now, valor, sensor.unidadMedida());
+        // FIX-0006 BR-002/BR-003/BR-005: eventId por publicación, secuencia por sensor y
+        // marca de calidad informativa (la anomalía se señala por código, no por ERROR_SENSOR).
+        long sequence = secuencias.computeIfAbsent(sensor.codigo(), c -> new AtomicLong())
+                .incrementAndGet();
+        return new Lectura(idDe(sensor.codigo()), now, valor, sensor.unidadMedida(),
+                UUID.randomUUID(), sequence,
+                anomalia ? CalidadEmisor.conAnomalia() : CalidadEmisor.normal());
     }
 
     private boolean enAnomalia(String codigo, Instant now) {

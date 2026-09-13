@@ -151,3 +151,35 @@ WS); el gateway es un SPOF con errores de dominio explícitos (`502`/`504`) y nu
 **Brecha conocida y aceptada:** los WS de `alerting`/`query-api` no validan token
 (`SimpleUrlHandlerMapping` sin auth); el gateway tunela el upgrade sin agregar autenticación →
 work item propio junto con el frontend.
+
+## ADR-0017 · Versionado del schema de `sensor.lecturas` y parseo con DTO + Jackson (FIX-0006)
+**Contexto:** el evento no tenía versión de schema, el publisher no emitía `eventId` ni marca de
+calidad y **los dos consumers que lo leen parseaban con expresiones regulares**
+(`LecturasRabbitConsumer` y `LecturasRealtimeConsumer`): el contrato de mensajería no se podía
+evolucionar con seguridad y hasta un payload válido con espacios (`"valor" : 5.0`) se rechazaba.
+El backlog lo registraba como `FIX-0002` (colisionaba con el parser de alertas) y proponía
+metadata de dispositivo inexistente, `SOSPECHOSA` sin semántica y *fail-closed* ante versiones
+desconocidas.
+**Decisión (HO-Gate 2026-09-13):** payload **v1** con `schemaVersion` (configuración del
+publisher, default `1.0`), `eventId` (trazabilidad + clave de idempotencia explícita),
+`sequence` (contador por sensor, reiniciado con la simulación) y `calidad` **informativa**
+(`estado ∈ {OK, ERROR_SENSOR}`, `confianza`, `codigosAnomalias`); `timestamp` **no** se renombra
+(ya es ISO-8601 con `Z`, o sea offset explícito). Los consumers migran a **DTO + Jackson**
+tolerante a propiedades desconocidas (Jackson 3 ya estaba en el classpath transitivo, sin
+dependencias nuevas). Política de versiones: **tolerancia hacia adelante** — legado (`0.0`
+implícito) y `1.x` se procesan, una **mayor desconocida se procesa con WARN una vez por versión**
+(un publisher más nuevo no debe tumbar la ingesta) y el rechazo queda para versiones
+malformadas o campos requeridos ausentes; `ingestion.schema.version-soportada` y
+`ingestion.schema.tolerar-versiones-mayores` permiten endurecer a DLQ `SCHEMA_UNSUPPORTED`.
+La `secuencia` se **persiste** (columna `secuencia BIGINT`, NULL en eventos legados) y los huecos
+se reportan con WARN sin descartar la lectura; el reinicio del publisher se registra como INFO.
+La ventana de compatibilidad con el payload plano queda **indefinida y medida** (INFO con
+contador de eventos legados).
+**Alternativas descartadas:** mantener regex (el versionado habría sido decorativo), *fail-closed*
+por default ante versión desconocida (rompe la evolución del publisher), incluir metadata de
+dispositivo (hardware inexistente), agregar `SOSPECHOSA` (semántica nueva de calidad sin
+definición) y renombrar `timestamp`.
+**Consecuencias:** `query-api` entra en el alcance (también consume `sensor.lecturas`) y expone la
+`calidad` del evento en el WS; la detección de huecos depende de la afinidad
+sensor → partición → instancia de FIX-0005 para su estado en memoria; y el contrato de
+`sensor.alertas` no cambia (verificado con su suite como regresión).

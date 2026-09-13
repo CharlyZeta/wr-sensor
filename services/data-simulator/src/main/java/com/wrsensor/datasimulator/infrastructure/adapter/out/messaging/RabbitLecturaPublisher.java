@@ -13,46 +13,79 @@ import reactor.rabbitmq.OutboundMessage;
 import reactor.rabbitmq.Sender;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * Adapter out (messaging): publica lecturas en `sensor.lecturas` (topic) con key
  * `lectura.{sensorId}` via **Reactor RabbitMQ** (BR-002/BR-007; nunca
- * RabbitTemplate). Payload JSON construido a mano (campos fijos, sin libs:
- * mismo criterio que CursorCodec/JwtAdapter) —
- * {@code {"sensorId":"<uuid>","timestamp":"<iso>","valor":<n>,"unidadMedida":"<ENUM>"}}.
+ * RabbitTemplate). Payload JSON construido a mano (sin libs: mismo criterio que
+ * CursorCodec/JwtAdapter).
+ *
+ * <p>FIX-0006 — payload **v1**: {@code {schemaVersion, eventId, sensorId, timestamp, valor,
+ * unidadMedida, sequence, calidad{estado, confianza, codigosAnomalias}}}. El `schemaVersion` es
+ * configuración (`simulador.lecturas.schema-version`, default {@code 1.0}), nunca una constante
+ * en el código.</p>
  */
 @Component
 public class RabbitLecturaPublisher implements LecturaPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(RabbitLecturaPublisher.class);
 
+    public static final String SCHEMA_VERSION_DEFAULT = "1.0";
+
     private final Sender sender;
     private final String exchange;
+    private final String schemaVersion;
 
     public RabbitLecturaPublisher(Sender sender,
-                                  @Value("${simulador.lecturas.exchange:sensor.lecturas}") String exchange) {
+                                  @Value("${simulador.lecturas.exchange:sensor.lecturas}") String exchange,
+                                  @Value("${simulador.lecturas.schema-version:1.0}") String schemaVersion) {
         this.sender = sender;
         this.exchange = exchange;
+        this.schemaVersion = schemaVersion == null || schemaVersion.isBlank()
+                ? SCHEMA_VERSION_DEFAULT : schemaVersion.trim();
     }
 
     @Override
     public Mono<Void> publish(Lectura lectura) {
         String key = "lectura." + lectura.sensorId();
-        byte[] body = json(lectura).getBytes(StandardCharsets.UTF_8);
+        byte[] body = json(lectura, schemaVersion).getBytes(StandardCharsets.UTF_8);
         return sender.send(Mono.just(new OutboundMessage(exchange, key, new AMQP.BasicProperties.Builder()
                 .contentType("application/json").build(), body)));
     }
 
-    static String json(Lectura l) {
-        return "{\"sensorId\":\"" + l.sensorId()
-                + "\",\"timestamp\":\"" + l.timestamp()
-                + "\",\"valor\":" + l.valor().toPlainString()
-                + ",\"unidadMedida\":\"" + l.unidadMedida().name() + "\"}";
+    static String json(Lectura l, String schemaVersion) {
+        return "{\"schemaVersion\":\"" + schemaVersion + "\""
+                + ",\"eventId\":\"" + l.eventId() + "\""
+                + ",\"sensorId\":\"" + l.sensorId() + "\""
+                + ",\"timestamp\":\"" + l.timestamp() + "\""
+                + ",\"valor\":" + l.valor().toPlainString()
+                + ",\"unidadMedida\":\"" + l.unidadMedida().name() + "\""
+                + ",\"sequence\":" + l.sequence()
+                + ",\"calidad\":{\"estado\":\"" + l.calidad().estado() + "\""
+                + ",\"confianza\":" + l.calidad().confianza()
+                + ",\"codigosAnomalias\":" + codigos(l.calidad().codigosAnomalias()) + "}}";
+    }
+
+    private static String codigos(List<String> codigos) {
+        if (codigos == null || codigos.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < codigos.size(); i++) {
+            sb.append(i == 0 ? "" : ",").append('"').append(codigos.get(i)).append('"');
+        }
+        return sb.append(']').toString();
     }
 
     /** Publica el payload para consumo del test de formato. */
+    public static String serializeJson(Lectura l, String schemaVersion) {
+        return json(l, schemaVersion);
+    }
+
+    /** Publica el payload con la versión por defecto (comodidad de tests). */
     public static String serializeJson(Lectura l) {
-        return json(l);
+        return json(l, SCHEMA_VERSION_DEFAULT);
     }
 
     /** Declara el exchange topic durable al arrancar (idempotente). */

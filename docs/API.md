@@ -66,7 +66,9 @@ publica `sensor.alertas`; `alerting-service` lee `sensor.alertas` y expone el
 
 Rechazos de consumo terminan en las DLQ (`queue.sensor.lecturas.dlq`,
 `queue.sensor.alertas.dlq`) con header `x-rechazo` (`PAYLOAD_INVALID`,
-`SENSOR_UNKNOWN`, `SENSOR_INACTIVE`, `TIMESTAMP_OUT_OF_WINDOW`).
+`SENSOR_UNKNOWN`, `SENSOR_INACTIVE`, `TIMESTAMP_OUT_OF_WINDOW`, `SCHEMA_UNSUPPORTED`).
+`SCHEMA_UNSUPPORTED` sólo aparece con `ingestion.schema.tolerar-versiones-mayores: false`
+(FIX-0006); por default una versión mayor desconocida se procesa con WARN.
 
 ## Ejemplos curl
 

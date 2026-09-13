@@ -39,6 +39,8 @@ public class IngestorLecturas {
     private final IngestaTransaccionalPort store;
     private final IngestionProperties props;
     private final Map<UUID, Severidad> ultimaSeveridad = new ConcurrentHashMap<>();
+    /** FIX-0006 BR-008: última secuencia vista por sensor (detección de huecos de publicación). */
+    private final Map<UUID, Long> ultimaSecuencia = new ConcurrentHashMap<>();
 
     public IngestorLecturas(SensorConfigPort sensores, IngestaTransaccionalPort store,
                             IngestionProperties props) {
@@ -51,6 +53,12 @@ public class IngestorLecturas {
     public void setUltimaSeveridad(UUID id, Severidad s) {
         if (s == null) ultimaSeveridad.remove(id);
         else ultimaSeveridad.put(id, s);
+    }
+
+    /** Inyectable en tests: setea la última secuencia conocida de un sensor. */
+    public void setUltimaSecuencia(UUID id, Long secuencia) {
+        if (secuencia == null) ultimaSecuencia.remove(id);
+        else ultimaSecuencia.put(id, secuencia);
     }
 
     public Mono<Resultado> procesar(LecturaEntrada lectura, Instant ahora) {
@@ -73,6 +81,9 @@ public class IngestorLecturas {
                     "sensor inactivo: " + sensor.codigo()));
         }
 
+        // --- FIX-0006 BR-008: huecos de secuencia (informativo, no descarta la lectura) ---
+        vigilarSecuencia(lectura, sensor.codigo());
+
         // --- FIX-0004: rango fisico y calidad del dato (antes de severidad) ---
         RangoFisicoEvaluador.Veredicto veredicto = RangoFisicoEvaluador.evaluar(
                 sensor, lectura.valor(), props.rangoFisico());
@@ -83,7 +94,8 @@ public class IngestorLecturas {
             log.warn("[ingestion] lectura ERROR_SENSOR sensor={} codigo={} valor={} unidad={} motivo={}",
                     sensor.id(), sensor.codigo(), lectura.valor(), sensor.unidadMedida(), motivo);
             LecturaPersistida error = new LecturaPersistida(lectura.sensorId(), lectura.timestamp(),
-                    lectura.valor(), lectura.unidadMedida(), null, Calidad.ERROR_SENSOR);
+                    lectura.valor(), lectura.unidadMedida(), null, Calidad.ERROR_SENSOR,
+                    lectura.secuencia());
             return store.persistir(error, ClaveIdempotencia.de(lectura), null)
                     .map(r -> new Resultado(lectura.sensorId(), null, Calidad.ERROR_SENSOR,
                             false, !r.persistida()));
@@ -96,7 +108,7 @@ public class IngestorLecturas {
         boolean cambio = anterior != null && anterior != severidad;
 
         LecturaPersistida persistida = new LecturaPersistida(lectura.sensorId(), lectura.timestamp(),
-                lectura.valor(), lectura.unidadMedida(), severidad, Calidad.OK);
+                lectura.valor(), lectura.unidadMedida(), severidad, Calidad.OK, lectura.secuencia());
         String clave = ClaveIdempotencia.de(lectura);
         IngestaTransaccionalPort.OutboxAlerta outbox = null;
         if (cambio) {
@@ -125,6 +137,36 @@ public class IngestorLecturas {
             throw new RechazoLecturaException(RechazoLecturaException.TIMESTAMP_OUT_OF_WINDOW,
                     "timestamp fuera de ventana: " + lectura.timestamp());
         }
+    }
+
+    /**
+     * FIX-0006 BR-008: compara la secuencia del emisor con la última vista y dejando evidencia.
+     * Nunca descarta la lectura (un hueco es información, no un error de datos) y tolera el
+     * reinicio del publisher (contador que vuelve a empezar).
+     *
+     * <p>La coherencia del "último sequence" en memoria depende de la afinidad
+     * sensor → partición → instancia de FIX-0005: un sensor siempre lo consume la misma
+     * instancia, así que no hace falta persistir la comparación.</p>
+     */
+    void vigilarSecuencia(LecturaEntrada lectura, String codigo) {
+        Long actual = lectura.secuencia();
+        if (actual == null) {
+            return;   // payload legado sin sequence
+        }
+        Long anterior = ultimaSecuencia.get(lectura.sensorId());
+        if (anterior != null) {
+            if (actual == anterior + 1) {
+                // flujo normal
+            } else if (actual > anterior + 1) {
+                log.warn("[ingestion] hueco de secuencia sensor={} codigo={} anterior={} actual={} "
+                                + "faltantes={} (la lectura se persiste igual)",
+                        lectura.sensorId(), codigo, anterior, actual, actual - anterior - 1);
+            } else {
+                log.info("[ingestion] secuencia reiniciada (publisher reiniciado) sensor={} codigo={} "
+                        + "anterior={} actual={}", lectura.sensorId(), codigo, anterior, actual);
+            }
+        }
+        ultimaSecuencia.put(lectura.sensorId(), actual);
     }
 
     /** Expuesto para tests: normalizacion de la marca de calidad del emisor. */

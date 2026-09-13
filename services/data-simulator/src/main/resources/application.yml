@@ -17,6 +17,8 @@ simulador:
     salto-metros: 2.0
   lecturas:
     exchange: sensor.lecturas
+    # FIX-0006 BR-001: version del schema del evento (configuracion, nunca hardcodeada en consumidores)
+    schema-version: ${SIMULADOR_SCHEMA_VERSION:1.0}
   sensores:
     - codigo: PARANA-RECONQUISTA
       nombre: Reconquista

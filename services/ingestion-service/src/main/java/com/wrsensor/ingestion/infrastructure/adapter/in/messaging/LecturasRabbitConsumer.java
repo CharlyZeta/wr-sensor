@@ -2,6 +2,7 @@ package com.wrsensor.ingestion.infrastructure.adapter.in.messaging;
 
 import com.rabbitmq.client.AMQP;
 import com.wrsensor.ingestion.application.service.IngestorLecturas;
+import com.wrsensor.ingestion.application.service.RegistroEsquema;
 import com.wrsensor.ingestion.domain.LecturaEntrada;
 import com.wrsensor.ingestion.domain.RechazoLecturaException;
 import com.wrsensor.ingestion.infrastructure.config.IngestionProperties;
@@ -22,13 +23,10 @@ import reactor.rabbitmq.QueueSpecification;
 import reactor.rabbitmq.Receiver;
 import reactor.rabbitmq.Sender;
 
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Adapter in (messaging): consume `sensor.lecturas` **particionado por sensorId**
@@ -58,17 +56,27 @@ public class LecturasRabbitConsumer {
     private final Sender sender;
     private final Receiver receiver;
     private final IngestorLecturas ingestor;
+    private final RegistroEsquema registroEsquema;
     private final IngestionProperties props;
 
     private final reactor.core.Disposable.Composite suscripciones = Disposables.composite();
     private volatile ParticionesPlan plan;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public LecturasRabbitConsumer(Sender sender, Receiver receiver,
-                                  IngestorLecturas ingestor, IngestionProperties props) {
+                                  IngestorLecturas ingestor, RegistroEsquema registroEsquema,
+                                  IngestionProperties props) {
         this.sender = sender;
         this.receiver = receiver;
         this.ingestor = ingestor;
+        this.registroEsquema = registroEsquema;
         this.props = props;
+    }
+
+    /** Conveniencia (tests): usa la política de schema por default de la configuración. */
+    public LecturasRabbitConsumer(Sender sender, Receiver receiver, IngestorLecturas ingestor,
+                                  IngestionProperties props) {
+        this(sender, receiver, ingestor, new RegistroEsquema(props.schema()), props);
     }
 
     @jakarta.annotation.PostConstruct
@@ -175,7 +183,14 @@ public class LecturasRabbitConsumer {
     }
 
     private Mono<Void> procesar(AcknowledgableDelivery d) {
-        Mono<Void> trabajo = Mono.defer(() -> ingestor.procesar(parseLectura(d.getBody())).then());
+        Mono<Void> trabajo = Mono.defer(() -> {
+            // FIX-0006 BR-006: la versión del schema se valida ANTES de procesar; un rechazo
+            // (versión inválida o no soportada sin tolerancia) viaja como RechazoLecturaException
+            // y termina en la DLQ sin tocar el resto de la cola.
+            LecturaEntrada lectura = parseLectura(d.getBody());
+            registroEsquema.validar(lectura.esquemaVersion());
+            return ingestor.procesar(lectura).then();
+        });
         return trabajo
                 .onErrorResume(RechazoLecturaException.class, e -> rechazar(d, e.motivo))
                 .onErrorResume(e -> rechazar(d, RechazoLecturaException.INFRA_ERROR));
@@ -200,39 +215,70 @@ public class LecturasRabbitConsumer {
         }
     }
 
-    // ============ parseo payload (formato FEAT-0010 BR-002) ============
+    // ============ parseo payload (FIX-0006 BR-006: DTO + Jackson) ============
+    //
+    // Se reemplazaron las expresiones regulares: con regex, "soportar v2" no dependía del
+    // schemaVersion sino de que los patrones siguieran matcheando (un simple `"valor" : 5.0` con
+    // espacios se rechazaba). El mapper ignora propiedades desconocidas, que es lo que hace real
+    // la tolerancia hacia adelante (BR-007).
 
-    private static final Pattern P_SENSOR = Pattern.compile("\"sensorId\":\"([0-9a-fA-F-]{36})\"");
-    private static final Pattern P_TS = Pattern.compile("\"timestamp\":\"([^\"]+)\"");
-    private static final Pattern P_VALOR = Pattern.compile("\"valor\":(-?\\d+(?:\\.\\d+)?)");
-    private static final Pattern P_UNIDAD = Pattern.compile("\"unidadMedida\":\"([A-Z_]+)\"");
-    private static final Pattern P_EVENT = Pattern.compile("\"eventId\":\"([^\"]+)\""); // FIX-0003 BR-001/BR-010 (opcional)
-    // FIX-0004 BR-007: marca de calidad del emisor (calidad.estado) — opcional, formato futuro
-    private static final Pattern P_CALIDAD = Pattern.compile("\"calidad\"\\s*:\\s*\\{[^}]*\"estado\"\\s*:\\s*\"([A-Z_]+)\"");
+    private static final tools.jackson.databind.json.JsonMapper MAPPER =
+            tools.jackson.databind.json.JsonMapper.builder()
+                    .disable(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .build();
 
     public static LecturaEntrada parseLectura(byte[] body) {
-        String json = new String(body, StandardCharsets.UTF_8);
+        LecturaMensaje m;
         try {
-            Matcher s = P_SENSOR.matcher(json);
-            Matcher t = P_TS.matcher(json);
-            Matcher v = P_VALOR.matcher(json);
-            Matcher u = P_UNIDAD.matcher(json);
-            if (!s.find() || !t.find() || !v.find() || !u.find()) {
-                throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID, "payload incompleto");
-            }
-            UUID id = UUID.fromString(s.group(1));
-            Instant ts = Instant.parse(t.group(1));
-            BigDecimal valor = new BigDecimal(v.group(1));
-            Matcher ev = P_EVENT.matcher(json);
-            String eventId = ev.find() ? ev.group(1) : null; // FIX-0003 BR-001/BR-010 (opcional)
-            Matcher cal = P_CALIDAD.matcher(json);
-            String calidadEmisor = cal.find() ? cal.group(1) : null; // FIX-0004 BR-007 (opcional)
-            return new LecturaEntrada(id, ts, valor, u.group(1), eventId, calidadEmisor);
-        } catch (RechazoLecturaException e) {
-            throw e;
-        } catch (RuntimeException e) {
+            m = MAPPER.readValue(body, LecturaMensaje.class);
+        } catch (Exception e) {
             throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID,
                     "payload malformado: " + e.getMessage());
         }
+        if (m == null) {
+            throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID, "payload vacio");
+        }
+        if (m.sensorId() == null || m.sensorId().isBlank()) {
+            throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID,
+                    "payload incompleto: falta sensorId");
+        }
+        if (m.timestamp() == null || m.timestamp().isBlank()) {
+            throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID,
+                    "payload incompleto: falta timestamp");
+        }
+        if (m.valor() == null) {
+            throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID,
+                    "payload incompleto: falta valor");
+        }
+        if (m.unidadMedida() == null || m.unidadMedida().isBlank()) {
+            throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID,
+                    "payload incompleto: falta unidadMedida");
+        }
+        UUID id;
+        Instant ts;
+        try {
+            id = UUID.fromString(m.sensorId().trim());
+        } catch (IllegalArgumentException e) {
+            throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID,
+                    "sensorId no es UUID: " + m.sensorId());
+        }
+        try {
+            ts = Instant.parse(m.timestamp().trim());
+        } catch (RuntimeException e) {
+            throw new RechazoLecturaException(RechazoLecturaException.PAYLOAD_INVALID,
+                    "timestamp no es ISO-8601 con offset: " + m.timestamp());
+        }
+        String calidadEmisor = null;
+        if (m.calidad() != null) {
+            for (String aviso : m.calidad().advertencias()) {
+                log.warn("[ingestion] campo informativo de calidad ignorado ({}) — la lectura se "
+                        + "procesa igual", aviso);
+            }
+            calidadEmisor = m.calidad().estado();
+        }
+        // FIX-0006 BR-008: la secuencia es informativa acá; la detección de huecos vive en el ingestor
+        Long secuencia = m.sequence() != null && m.sequence() >= 0 ? m.sequence() : null;
+        return new LecturaEntrada(id, ts, m.valor(), m.unidadMedida().trim(), m.eventId(),
+                calidadEmisor, m.schemaVersion(), secuencia);
     }
 }

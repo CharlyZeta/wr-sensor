@@ -19,7 +19,8 @@ public record IngestionProperties(
         Messaging messaging,
         Outbox outbox,
         RangoFisico rangoFisico,
-        Particiones particiones
+        Particiones particiones,
+        Schema schema
 ) {
 
     public record Registry(String baseUrl, Auth auth) {
@@ -74,5 +75,24 @@ public record IngestionProperties(
     public record RangoFisico(Map<String, Rango> unidades, Map<String, Rango> overrides) {
 
         public record Rango(BigDecimal min, BigDecimal max) {}
+    }
+
+    /**
+     * Política de versiones del schema del evento (FIX-0006 BR-006/BR-007/BR-011).
+     *
+     * @param versionSoportada         versión que este consumer entiende (default "1.0")
+     * @param tolerarVersionesMayores  true (default) = tolerancia hacia adelante; false =
+     *                                 rechazo a la DLQ con motivo SCHEMA_UNSUPPORTED
+     */
+    public record Schema(String versionSoportada, Boolean tolerarVersionesMayores) {
+
+        public Schema {
+            versionSoportada = versionSoportada == null || versionSoportada.isBlank()
+                    ? "1.0" : versionSoportada.trim();
+        }
+
+        public boolean tolerarMayores() {
+            return tolerarVersionesMayores == null || tolerarVersionesMayores;
+        }
     }
 }

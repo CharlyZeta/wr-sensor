@@ -40,12 +40,12 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | Módulo | Unit/assert | ITs | Total |
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 | 123 |
-| `data-simulator` | 13 | 1 | 14 |
-| `ingestion-service` | 45 | 21 | 66 |
+| `data-simulator` | 19 | 1 | 20 |
+| `ingestion-service` | 68 | 28 | 96 |
 | `alerting-service` | 10 | 2 | 12 |
-| `query-api` | 7 | 1 | 8 |
+| `query-api` | 11 | 1 | 12 |
 | `api-gateway` | 31 | 16 | 47 |
-| **Total** | **195** | **75** | **270** |
+| **Total** | **228** | **82** | **310** |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
 > `mvn -o test -Dtest='*IT'` y requieren Docker Desktop.
@@ -123,7 +123,36 @@ Flujo de prueba end-to-end manual:
 # 4) ingestion consume y persiste; alerting notifica por ws://localhost:8084/ws/alertas
 ```
 
-## 5. Escalado horizontal de `ingestion-service` (FIX-0005)
+## 5. Schema del evento `sensor.lecturas` (FIX-0006)
+
+El evento lleva `schemaVersion` (`MAYOR.MENOR`), `eventId`, `sequence` y `calidad` informativa
+(payload completo en `docs/ARQUITECTURA.md` §2). Convivencia:
+
+- El **publisher** publica la versión configurada: `SIMULADOR_SCHEMA_VERSION` (default `1.0`).
+- El **consumer** de ingestion declara qué soporta y cómo reaccionar:
+  `INGESTION_SCHEMA_VERSION` (default `1.0`) e `INGESTION_SCHEMA_TOLERAR_MAYORES` (default
+  `true`). Con `true`, una versión mayor desconocida se procesa con WARN; con `false` se rechaza
+  a la DLQ con motivo `SCHEMA_UNSUPPORTED`.
+- El **payload legado** (sin `schemaVersion`) sigue siendo válido: se procesa y se registra un
+  INFO de "evento legado" con contador, para poder decidir el cierre de la ventana con datos.
+
+Inspeccionar el evento que está circulando:
+
+```powershell
+docker compose exec rabbitmq rabbitmqadmin get queue=queue.sensor.lecturas.p0 count=1
+# o, sin ack y con detector de huecos:
+docker compose logs ingestion-service | Select-String "hueco de secuencia|evento legado|mayor desconocida"
+```
+
+Para verificar el rechazo por versión inválida (queda en la DLQ con `x-rechazo`):
+
+```powershell
+docker compose exec rabbitmq rabbitmqadmin publish exchange=sensor.lecturas routing_key=lectura.<id> \
+  payload='{"schemaVersion":"uno","sensorId":"<id>","timestamp":"2026-09-13T10:00:00Z","valor":1,"unidadMedida":"METROS"}'
+docker compose exec rabbitmq rabbitmqadmin get queue=queue.sensor.lecturas.dlq count=1
+```
+
+## 6. Escalado horizontal de `ingestion-service` (FIX-0005)
 
 El consumo está **particionado por `sensorId`**: el exchange `x-consistent-hash`
 `sensor.lecturas.part` reparte las lecturas entre `N` colas
@@ -168,7 +197,7 @@ Eso garantiza afinidad sensor → partición → instancia (orden por sensor y e
 6. Si el broker no soporta el exchange type (plugin sin habilitar) la instancia registra
    **ERROR** y **no** arranca el consumo: nunca degrada a consumir sin particionar.
 
-## 6. Orquestación SDD-GL
+## 7. Orquestación SDD-GL
 
 - Orquestador: `CLAUDE.md` (Claude Code) / `AGENTS.md` (Antigravity). Arranque: leer
   `contracts/[ID].md` → DRAFT/GATE → `sdd-gate`; APPROVED/LOOP → `sdd-loop`;

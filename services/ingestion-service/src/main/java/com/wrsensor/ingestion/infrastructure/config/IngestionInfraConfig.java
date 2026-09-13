@@ -64,5 +64,11 @@ public class IngestionInfraConfig {
                                       IngestionProperties props) {
         return new IngestorLecturas(sensores, store, props);
     }
+
+    /** FIX-0006: política de versiones del schema (valida y registra evidencia). */
+    @Bean
+    com.wrsensor.ingestion.application.service.RegistroEsquema registroEsquema(IngestionProperties props) {
+        return new com.wrsensor.ingestion.application.service.RegistroEsquema(props.schema());
+    }
 }
 

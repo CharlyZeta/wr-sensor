@@ -37,13 +37,13 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | Módulo | Clases unit/assert | ITs | Detalle |
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 (6 ITs) | BR/AC/AF por contract + e2e FEAT-0001..0006 |
-| `data-simulator` | 13 | 1 | `ValorSinteticoTest` 3 · `LecturaJsonTest` 1 · `SimuladorServiceTest` 9 |
-| `ingestion-service` | 45 | 21 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005) |
+| `data-simulator` | 19 | 1 | `ValorSinteticoTest` 3 · `LecturaJsonTest` 4 · `SimuladorServiceTest` 9 · `FIX0006SimuladorTest` 3 |
+| `ingestion-service` | 68 | 28 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · `FIX0006EsquemaTest` 6 · `FIX0006ParseoTest` 8 · `FIX0006SecuenciaTest` 5 · `FIX0006DocsTest` 4 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005 + FIX-0006) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
-| `query-api` | 7 | 1 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 |
+| `query-api` | 11 | 1 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 · `FIX0006RealtimeTest` 4 |
 | `api-gateway` | 31 | 16 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · IT `FEAT0007MainFlowIT` 16 |
 
-**Total: 195 unit/assert + 75 ITs = 270 verdes** (JUnit 5, AssertJ, StepVerifier,
+**Total: 228 unit/assert + 82 ITs = 310 verdes** (JUnit 5, AssertJ, StepVerifier,
 WebTestClient, Testcontainers — Maven offline). Los `*IT` se corren aparte:
 `mvn -o test -Dtest='*IT'`.
 
@@ -74,6 +74,17 @@ WebTestClient, Testcontainers — Maven offline). Los `*IT` se corren aparte:
    partición con `qos=1` y orden intra-partición) y fail-fast si la topología no se puede
    declarar. Bug de test corregido: `queuePurge` sobre una cola inexistente cierra el canal
    AMQP; y la management API de RabbitMQ **omite los campos en cero** (0 ≠ ausente).
+
+9. **Contrato de `sensor.lecturas` sin versión y parseado por regex** (FIX-0006): los dos
+   consumers leían el evento con `Pattern.compile`, así que el versionado del schema era
+   imposible y hasta un payload válido con espacios (`"valor" : 5.0`) se rechazaba. Se publicó el
+   **payload v1** (`schemaVersion`, `eventId`, `sequence`, `calidad` informativa), se migró el
+   parseo a **DTO + Jackson 3** (ya en el classpath, sin dependencias nuevas), se adoptó
+   **tolerancia hacia adelante** (versión mayor desconocida = se procesa con WARN; rechazo sólo
+   por versión malformada o campos faltantes), se persiste la `secuencia` y se detectan huecos con
+   WARN. Bug de diseño corregido respecto del doc de backlog: metía metadata de dispositivo
+   inexistente y `SOSPECHOSA` sin semántica, y hacía *fail-closed* ante versiones desconocidas
+   (un publisher nuevo habría tumbado la ingesta).
 
 ## Pendientes (roadmap v1)
 

@@ -103,7 +103,8 @@ class FIX0005ConsumerTest {
                         java.util.Map.of("METROS", new IngestionProperties.RangoFisico.Rango(
                                 new BigDecimal("-1.0"), new BigDecimal("15.0"))),
                         java.util.Map.of()),
-                new IngestionProperties.Particiones(total, asignadas, "sensor.lecturas.part", patron));
+                new IngestionProperties.Particiones(total, asignadas, "sensor.lecturas.part", patron),
+                new IngestionProperties.Schema(null, null));
     }
 
     private static byte[] cuerpo(UUID sensor, String valor, String ts) {

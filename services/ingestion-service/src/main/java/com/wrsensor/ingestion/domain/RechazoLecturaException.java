@@ -8,6 +8,8 @@ public class RechazoLecturaException extends RuntimeException {
     public static final String SENSOR_INACTIVE = "SENSOR_INACTIVE";
     public static final String TIMESTAMP_OUT_OF_WINDOW = "TIMESTAMP_OUT_OF_WINDOW";
     public static final String INFRA_ERROR = "INFRA_ERROR";
+    /** FIX-0006 BR-011: sólo con `ingestion.schema.tolerar-versiones-mayores: false`. */
+    public static final String SCHEMA_UNSUPPORTED = "SCHEMA_UNSUPPORTED";
 
     public final String motivo;
 

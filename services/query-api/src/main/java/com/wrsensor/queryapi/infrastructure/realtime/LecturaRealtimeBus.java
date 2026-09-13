@@ -21,10 +21,14 @@ public class LecturaRealtimeBus {
     public void publicar(LecturaConsulta l) {
         Sinks.Many<String> canal = canales.get(l.sensorId());
         if (canal != null) {
+            // FIX-0006 BR-009: se agrega `calidad` cuando el evento la trae; el payload de un
+            // evento legado queda exactamente igual que antes.
             String json = "{\"sensorId\":\"" + l.sensorId()
                     + "\",\"timestamp\":\"" + l.timestamp()
                     + "\",\"valor\":" + l.valor().toPlainString()
-                    + ",\"unidadMedida\":\"" + l.unidadMedida() + "\"}";
+                    + ",\"unidadMedida\":\"" + l.unidadMedida() + "\""
+                    + (l.calidad() == null ? "" : ",\"calidad\":\"" + l.calidad() + "\"")
+                    + "}";
             canal.tryEmitNext(json);
         }
     }

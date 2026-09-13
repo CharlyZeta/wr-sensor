@@ -139,6 +139,31 @@ preservada.
 | `DeactivateSensorServiceTest` | 3 ✅ | BR-002/004/005 (404, UPDATE INACTIVO, no-op idempotente) |
 
 **Suite `sensor-registry` actual (2026-09-09): 89 unit/assert + 34 ITs = 123 verdes.**
+### 2k. `FIX-0006` (RESOLVED 2026-09-13) — versionado del schema de `sensor.lecturas`
+
+Origen: `docs/FIX-0002-schema-versionado-lecturas.md` (backlog), promocionado y **renumerado a
+`contracts/FIX-0006.md`** (`contracts/FIX-0002` es el parser de `sensor.alertas`).
+
+- **Problema**: el evento no tenía versión de schema, el publisher no emitía `eventId` ni marca de
+  calidad y **los dos consumers lo parseaban con expresiones regulares** → contrato de mensajería
+  imposible de evolucionar con seguridad (un payload válido con espacios se rechazaba).
+- **Solución**: **payload v1** (`schemaVersion` configurable, `eventId`, `sequence` por sensor,
+  `calidad` informativa `{estado, confianza, codigosAnomalias}`), parseo en ambos consumers con
+  **DTO + Jackson 3** tolerante a campos desconocidos, `sequence` **persistida** en la hypertable
+  con detección de huecos por WARN (el reinicio del publisher se registra como INFO) y `query-api`
+  exponiendo la `calidad` del evento en el WS.
+- **Política de versiones**: **tolerancia hacia adelante** (una mayor desconocida se procesa con
+  WARN una vez por versión); `ingestion.schema.tolerar-versiones-mayores: false` la endurece a DLQ
+  `SCHEMA_UNSUPPORTED`. El payload plano legado sigue válido con ventana **indefinida y medida**
+  (INFO con contador), para cerrarla con datos y no con una fecha arbitraria.
+- **Fuera de alcance (decidido en HO-Gate)**: metadata de dispositivo (hardware inexistente),
+  `calidad.estado = SOSPECHOSA`, renombrar `timestamp` a `timestampUtc`, versionar
+  `sensor.alertas` y retirar el payload legado.
+- **Evidencia**: `contracts/FIX-0006.md` (31/31 ✅), auditoría
+  `.sdd/runs/FIX-0006-20260913-150000.md`, ADR-0017, suites `data-simulator` 19+1,
+  `ingestion-service` 68+28, `query-api` 11+1 y regresión de `alerting-service` 10+2 (el contrato
+  de alertas no cambió).
+
 ### 2j. `FEAT-0007` (RESOLVED 2026-09-13) — `api-gateway`: entrada única, rate limiting y correlación
 
 Origen: `docs/FIX-0005-gateway-rate-limiting.md` (backlog), revisado en Gate y promocionado a
