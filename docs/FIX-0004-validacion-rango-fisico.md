@@ -1,6 +1,10 @@
 # FIX-0004 — Validación de rango físico de lecturas en `ingestion-service`
-
-**Status:** DRAFT
+> **PROMOCIONADO Y RESUELTO (2026-09-11):** este doc de backlog es el origen de
+> **`contracts/FIX-0004.md`** (Status: RESOLVED, 16/16 ✅) — mismo tema, mismo número. Se
+> conserva como registro histórico; el campo `calidad.estado` del emisor quedó como
+> compatibilidad hacia adelante (BR-007 de ese contrato) y el versionado del payload sigue
+> pendiente en `docs/FIX-0002-schema-versionado-lecturas.md` (a renumerar como FIX-0006).
+**Status:** PROMOCIONADO a `contracts/FIX-0004.md` (RESOLVED)
 **Mode:** GATE
 **Servicio(s) afectado(s):** `ingestion-service`
 **Relacionado:** FIX-0002 (usa `calidad.estado`), FEAT-0011, FEAT-0012 (alerting)

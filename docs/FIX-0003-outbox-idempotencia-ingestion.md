@@ -1,6 +1,9 @@
 # FIX-0003 — Outbox pattern e idempotencia en `ingestion-service`
-
-**Status:** DRAFT
+> **PROMOCIONADO Y RESUELTO (2026-09-11):** este doc de backlog es el origen de
+> **`contracts/FIX-0003.md`** (Status: RESOLVED, 19/19 ✅) — mismo tema, mismo número. Se
+> conserva como registro histórico del backlog; el ventId que menciona como dependencia
+> quedó definido dentro de ese mismo contrato (no en FIX-0002).
+**Status:** PROMOCIONADO a `contracts/FIX-0003.md` (RESOLVED)
 **Mode:** GATE
 **Servicio(s) afectado(s):** `ingestion-service`
 **Relacionado:** FIX-0002 (requiere `eventId`), FEAT-0011

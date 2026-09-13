@@ -271,17 +271,26 @@ Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idemp
 **Estado: aguardando la orden de ejecución del humano** (no se procesan todavía).
 
 > **Mapeo de IDs (serie autoritativa = `contracts/`):**
-> - `docs/FIX-0006-particionamiento-consumers.md` → **PROMOCIONADO y RESUELTO como
+> - `docs/FIX-0003-outbox-idempotencia-ingestion.md` → **PROMOCIONADO Y RESUELTO como
+>   `contracts/FIX-0003.md`** (19/19 ✅) — mismo tema y mismo número (coincidencia).
+> - `docs/FIX-0004-validacion-rango-fisico.md` → **PROMOCIONADO Y RESUELTO como
+>   `contracts/FIX-0004.md`** (16/16 ✅) — mismo tema y mismo número (coincidencia).
+> - `docs/FIX-0006-particionamiento-consumers.md` → **PROMOCIONADO Y RESUELTO como
 >   `contracts/FIX-0005.md`** (Gate EXPRESS 2026-09-11, Loop completado 2026-09-11, 23/23 ✅;
 >   Ambiguity Log resuelto: consistent-hash exchange + binding e2e, 4 particiones, estado de
 >   severidad fuera de alcance).
-> - `docs/FIX-0005-gateway-rate-limiting.md` → **PROMOCIONADO y RESUELTO como
+> - `docs/FIX-0005-gateway-rate-limiting.md` → **PROMOCIONADO Y RESUELTO como
 >   `contracts/FEAT-0007.md`** (Gate EXPRESS 2026-09-11, Loop completado 2026-09-13, 33/33 ✅).
 >   Cambia de serie porque agrega un componente nuevo (`api-gateway`); decisiones humanas:
 >   gateway propio en WebFlux, cerrar los puertos de servicios detrás del gateway con
 >   `docker-compose.dev.yml` para debug, límites moderados (login 10/60 s, lectura 120/60 s,
 >   default 300/60 s, WS 30/60 s) y auth de WebSocket fuera de alcance (brecha documentada).
-> - Próximo ID libre tras `FIX-0005` / `FEAT-0007`: `FIX-0006` / `FEAT-0008`.
+> - **Pendientes reales del backlog**: `docs/FIX-0002-schema-versionado-lecturas.md` (versionado
+>   del payload → al promocionarse será **`contracts/FIX-0006.md`**, porque `contracts/FIX-0002`
+>   es el parser de alertas) y `docs/FIX-0007-circuit-breaker.md` (circuit breaker de ingestion
+>   hacia registry → próximo ID libre tras `FIX-0006`).
+> - **Follow-ups nacidos de los fixes** (sin doc de backlog todavía): auth de WebSocket y CORS
+>   (FEAT-0007), persistir `ultimaSeveridad` y afinidad de `alerting-service` (FIX-0005).
 
 > Nota de gobernanza: existe **colisión de ID** entre `contracts/FIX-0002.md` (RESOLVED) y
 > `docs/FIX-0002-schema-versionado-lecturas.md`, y entre los docs de backlog `FIX-0005..0007`
