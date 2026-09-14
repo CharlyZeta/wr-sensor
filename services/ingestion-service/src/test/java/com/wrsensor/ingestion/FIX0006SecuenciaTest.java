@@ -42,7 +42,7 @@ class FIX0006SecuenciaTest {
     private static final IngestionProperties PROPS = new IngestionProperties(
             300L,
             new IngestionProperties.Registry("http://x",
-                    new IngestionProperties.Registry.Auth("a", "b")),
+                    new IngestionProperties.Registry.Auth("a", "b"), null, null, null, null),
             new IngestionProperties.Lecturas("sensor.lecturas", "dlq", "dlx"),
             new IngestionProperties.Alertas("sensor.alertas"),
             new IngestionProperties.Messaging(3, "dlx"),

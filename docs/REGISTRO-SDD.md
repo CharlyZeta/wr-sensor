@@ -38,12 +38,12 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 (6 ITs) | BR/AC/AF por contract + e2e FEAT-0001..0006 |
 | `data-simulator` | 19 | 1 | `ValorSinteticoTest` 3 · `LecturaJsonTest` 4 · `SimuladorServiceTest` 9 · `FIX0006SimuladorTest` 3 |
-| `ingestion-service` | 68 | 28 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · `FIX0006EsquemaTest` 6 · `FIX0006ParseoTest` 8 · `FIX0006SecuenciaTest` 5 · `FIX0006DocsTest` 4 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005 + FIX-0006) |
+| `ingestion-service` | 88 | 33 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · `FIX0006EsquemaTest` 6 · `FIX0006ParseoTest` 8 · `FIX0006SecuenciaTest` 5 · `FIX0006DocsTest` 4 · `CircuitoResilienciaTest` 5 · `FIX0007ResilienciaTest` 10 · `FIX0007ObservabilidadTest` 2 · `FIX0007DocsTest` 3 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005 + FIX-0006 + FIX-0007) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
 | `query-api` | 11 | 1 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 · `FIX0006RealtimeTest` 4 |
 | `api-gateway` | 31 | 16 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · IT `FEAT0007MainFlowIT` 16 |
 
-**Total: 228 unit/assert + 82 ITs = 310 verdes** (JUnit 5, AssertJ, StepVerifier,
+**Total: 248 unit/assert + 87 ITs = 335 verdes** (JUnit 5, AssertJ, StepVerifier,
 WebTestClient, Testcontainers — Maven offline). Los `*IT` se corren aparte:
 `mvn -o test -Dtest='*IT'`.
 
@@ -85,6 +85,15 @@ WebTestClient, Testcontainers — Maven offline). Los `*IT` se corren aparte:
    WARN. Bug de diseño corregido respecto del doc de backlog: metía metadata de dispositivo
    inexistente y `SOSPECHOSA` sin semántica, y hacía *fail-closed* ante versiones desconocidas
    (un publisher nuevo habría tumbado la ingesta).
+
+10. **Lookup de config sin resiliencia y con cache que nunca expiraba** (FIX-0007): el adapter de
+    `sensor-registry` no tenía timeouts, no había circuit breaker y la cache era un
+    `ConcurrentHashMap` sin TTL. Consecuencia real: un sensor desactivado (o con bandas nuevas)
+    seguía ingiriéndose con la config vieja para siempre, y el token JWT cacheado nunca se
+    refrescaba (al expirar, 1 h, todo sensor no cacheado fallaba de forma permanente). Se agregó un
+    **circuit breaker propio en el dominio** (cero dependencias), **cache con TTL +
+    last-known-good**, timeouts de respuesta/conexión, refresco del token ante `401`, motivo de DLQ
+    `REGISTRY_UNAVAILABLE` y endpoint interno `GET /api/ingestion/resiliencia` (sin actuator).
 
 ## Pendientes (roadmap v1)
 

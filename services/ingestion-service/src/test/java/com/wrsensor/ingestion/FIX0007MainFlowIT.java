@@ -137,6 +137,12 @@ class FIX0007MainFlowIT {
     @Autowired
     com.wrsensor.ingestion.application.service.IngestorLecturas ingestor;
 
+    @Autowired
+    com.wrsensor.ingestion.domain.CircuitoResiliencia circuito;
+
+    @Autowired
+    com.wrsensor.ingestion.infrastructure.adapter.out.registry.CacheConfigSensores cacheConfig;
+
     @LocalServerPort
     int puertoGateway;
 
@@ -156,6 +162,8 @@ class FIX0007MainFlowIT {
         channel.exchangeDeclare("sensor.lecturas", "topic", true);
         ingestor.setUltimaSeveridad(A, null);
         ingestor.setUltimaSecuencia(A, null);
+        circuito.reset();        // el breaker y la cache son singletons compartidos entre tests
+        cacheConfig.limpiar();
         db.sql("DELETE FROM outbox_alerta").fetch().rowsUpdated()
                 .then(db.sql("DELETE FROM lectura_procesada").fetch().rowsUpdated())
                 .then(db.sql("DELETE FROM lectura").fetch().rowsUpdated())

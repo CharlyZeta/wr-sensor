@@ -41,11 +41,11 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 |---|---|---|---|
 | `sensor-registry` | 89 | 34 | 123 |
 | `data-simulator` | 19 | 1 | 20 |
-| `ingestion-service` | 68 | 28 | 96 |
+| `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 11 | 1 | 12 |
 | `api-gateway` | 31 | 16 | 47 |
-| **Total** | **228** | **82** | **310** |
+| **Total** | **248** | **87** | **335** |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
 > `mvn -o test -Dtest='*IT'` y requieren Docker Desktop.

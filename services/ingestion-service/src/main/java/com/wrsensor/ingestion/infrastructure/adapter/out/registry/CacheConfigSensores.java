@@ -68,4 +68,12 @@ public class CacheConfigSensores {
     public long vencidasUsadas() {
         return vencidasUsadas.get();
     }
+
+    /** Vacía las entradas y los contadores (tests / reinicio operativo controlado). */
+    public void limpiar() {
+        cache.clear();
+        aciertos.set(0);
+        refrescos.set(0);
+        vencidasUsadas.set(0);
+    }
 }

@@ -119,4 +119,12 @@ public final class CircuitoResiliencia {
     public synchronized long llamadas() {
         return llamadas;
     }
+
+    /** Vuelve a CERRADO y limpia los contadores (tests / reinicio operativo controlado). */
+    public synchronized void reset() {
+        estado = Estado.CERRADO;
+        fallosConsecutivos = 0;
+        exitosConsecutivos = 0;
+        abiertoHasta = null;
+    }
 }

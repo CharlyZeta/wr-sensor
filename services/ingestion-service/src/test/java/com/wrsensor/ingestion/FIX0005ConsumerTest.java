@@ -93,7 +93,7 @@ class FIX0005ConsumerTest {
         return new IngestionProperties(
                 300L,
                 new IngestionProperties.Registry("http://x",
-                        new IngestionProperties.Registry.Auth("a", "b")),
+                        new IngestionProperties.Registry.Auth("a", "b"), null, null, null, null),
                 new IngestionProperties.Lecturas("sensor.lecturas", "queue.sensor.lecturas.dlq",
                         "sensor.lecturas.dlx"),
                 new IngestionProperties.Alertas("sensor.alertas"),

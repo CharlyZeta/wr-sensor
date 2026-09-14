@@ -26,11 +26,6 @@ public record IngestionProperties(
     public record Registry(String baseUrl, Auth auth, Long timeoutMs, Long conexionTimeoutMs,
                           Cache cache, Circuito circuito) {
 
-        /** Conveniencia (tests): política por default (timeouts/cache/circuito de configuración). */
-        public Registry(String baseUrl, Auth auth) {
-            this(baseUrl, auth, null, null, null, null);
-        }
-
         public record Auth(String email, String password) {}
 
         public long timeoutMsOrDefault() {

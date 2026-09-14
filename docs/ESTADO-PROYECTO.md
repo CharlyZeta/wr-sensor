@@ -139,6 +139,28 @@ preservada.
 | `DeactivateSensorServiceTest` | 3 ✅ | BR-002/004/005 (404, UPDATE INACTIVO, no-op idempotente) |
 
 **Suite `sensor-registry` actual (2026-09-09): 89 unit/assert + 34 ITs = 123 verdes.**
+### 2l. `FIX-0007` (RESOLVED 2026-09-14) — resiliencia del lookup de config de sensores
+
+Origen: `docs/FIX-0007-circuit-breaker.md` (backlog), promocionado a `contracts/FIX-0007.md` con
+el alcance ampliado de "circuit breaker" a **resiliencia del lookup de config**.
+
+- **Problema**: el adapter a `sensor-registry` no tenía timeouts, no había circuit breaker y la
+  cache era un `ConcurrentHashMap` **sin TTL**. Eso escondía dos bugs de negocio: (a) un sensor
+  desactivado o con bandas nuevas seguía ingiriéndose con la config vieja para siempre, y (b) el
+  token JWT cacheado **nunca se refrescaba** (al expirar, 1 h, todo sensor no cacheado fallaba de
+  forma permanente hasta reiniciar).
+- **Solución**: timeouts de respuesta/conexión explícitos, **circuit breaker propio en el dominio**
+  (CERRADO/ABIERTO/SEMIABIERTO, reloj inyectado, cero dependencias), **cache con TTL +
+  last-known-good** (copia vencida se usa antes que perder lecturas), refresco del token ante
+  `401` (invalidar + login + un reintento), motivo de DLQ **`REGISTRY_UNAVAILABLE`** y endpoint
+  interno `GET /api/ingestion/resiliencia` (sin `actuator`).
+- **Fuera de alcance (decidido en HO-Gate)**: reintentos con backoff (la config
+  `retry-max-attempts` queda documentada como sin uso), cache en Redis, actuator/Micrometer,
+  invalidación evento-driven y circuit breaker en otras integraciones.
+- **Evidencia**: `contracts/FIX-0007.md` (30/30 ✅), auditoría
+  `.sdd/runs/FIX-0007-20260913-153000.md`, ADR-0018, suites `ingestion-service` 88+33 (los 5 ITs
+  previos revalidados con el adapter reescrito).
+
 ### 2k. `FIX-0006` (RESOLVED 2026-09-13) — versionado del schema de `sensor.lecturas`
 
 Origen: `docs/FIX-0002-schema-versionado-lecturas.md` (backlog), promocionado y **renumerado a
