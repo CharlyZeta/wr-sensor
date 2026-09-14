@@ -10,6 +10,8 @@ public class RechazoLecturaException extends RuntimeException {
     public static final String INFRA_ERROR = "INFRA_ERROR";
     /** FIX-0006 BR-011: sólo con `ingestion.schema.tolerar-versiones-mayores: false`. */
     public static final String SCHEMA_UNSUPPORTED = "SCHEMA_UNSUPPORTED";
+    /** FIX-0007 BR-005: el registry no responde y no hay config cacheada del sensor. */
+    public static final String REGISTRY_UNAVAILABLE = "REGISTRY_UNAVAILABLE";
 
     public final String motivo;
 

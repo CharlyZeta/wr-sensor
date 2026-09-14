@@ -23,8 +23,45 @@ public record IngestionProperties(
         Schema schema
 ) {
 
-    public record Registry(String baseUrl, Auth auth) {
+    public record Registry(String baseUrl, Auth auth, Long timeoutMs, Long conexionTimeoutMs,
+                          Cache cache, Circuito circuito) {
+
+        /** Conveniencia (tests): política por default (timeouts/cache/circuito de configuración). */
+        public Registry(String baseUrl, Auth auth) {
+            this(baseUrl, auth, null, null, null, null);
+        }
+
         public record Auth(String email, String password) {}
+
+        public long timeoutMsOrDefault() {
+            return timeoutMs == null ? 2000L : timeoutMs;
+        }
+
+        public long conexionTimeoutMsOrDefault() {
+            return conexionTimeoutMs == null ? 1000L : conexionTimeoutMs;
+        }
+
+        /** FIX-0007 BR-004: TTL de la cache de config de sensores. */
+        public record Cache(Long ttlSegundos) {
+            public long ttlSegundosOrDefault() {
+                return ttlSegundos == null ? 300L : ttlSegundos;
+            }
+        }
+
+        /** FIX-0007 BR-002: política del circuit breaker. */
+        public record Circuito(Integer fallosParaAbrir, Long segundosAbierto, Integer exitosParaCerrar) {
+            public int fallosParaAbrirOrDefault() {
+                return fallosParaAbrir == null ? 5 : fallosParaAbrir;
+            }
+
+            public long segundosAbiertoOrDefault() {
+                return segundosAbierto == null ? 30L : segundosAbierto;
+            }
+
+            public int exitosParaCerrarOrDefault() {
+                return exitosParaCerrar == null ? 2 : exitosParaCerrar;
+            }
+        }
     }
 
     /**

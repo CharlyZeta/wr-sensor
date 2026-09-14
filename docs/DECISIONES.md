@@ -183,3 +183,28 @@ definición) y renombrar `timestamp`.
 `calidad` del evento en el WS; la detección de huecos depende de la afinidad
 sensor → partición → instancia de FIX-0005 para su estado en memoria; y el contrato de
 `sensor.alertas` no cambia (verificado con su suite como regresión).
+
+## ADR-0018 · Resiliencia del lookup de config de sensores: circuit breaker propio + cache TTL (FIX-0007)
+**Contexto:** `ingestion-service` resolvía la config de cada sensor contra `sensor-registry` **sin
+timeout explícito, sin circuit breaker y con una cache `ConcurrentHashMap` que nunca expiraba**.
+Dos bugs reales derivados: (a) un sensor desactivado o con bandas nuevas seguía ingiriéndose con
+la config vieja para siempre, y (b) el token JWT que se cacheaba al primer login **nunca se
+refrescaba**, de modo que al expirar (1 h, el registry valida `exp`) todo sensor no cacheado
+fallaba de forma permanente hasta reiniciar. El doc de backlog (`docs/FIX-0007-...`) no veía esos
+dos y pedía un circuit breaker con `actuator` y reintentos que no existían.
+**Decisión (HO-Gate 2026-09-13):** circuit breaker **propio en el dominio** (estados
+CERRADO/ABIERTO/SEMIABIERTO, reloj inyectado, cero dependencias — Resilience4j sólo tenía el BOM
+cacheado y habría roto el build offline); **cache local con TTL + last-known-good** (dentro del TTL
+se responde sin red; vencida se refresca; si el refresh falla o el circuito está abierto, se usa la
+copia vencida con WARN); timeouts de respuesta/conexión explícitos (2000/1000 ms); **refresco del
+token ante 401** (invalidar + login + un reintento); DLQ con motivo **`REGISTRY_UNAVAILABLE`** (en
+lugar de `INFRA_ERROR` genérico) y **endpoint interno** `GET /api/ingestion/resiliencia` sin
+`actuator`. Umbrales moderados: 5 fallos consecutivos, 30 s abierto, 2 éxitos para cerrar, TTL 300 s.
+**Alternativas descartadas:** Resilience4j (dependencia nueva sin artefactos en el `.m2`), Redis
+para la cache (ningún servicio lo usa hoy y agrega un salto de red), `actuator`/Micrometer (no está
+en ningún servicio), reintentos con backoff en este fix (ampliaba el camino de fallo; queda como
+deuda: `retry-max-attempts` se declara sin uso).
+**Consecuencias:** el lookup tolera la caída del registry sin perder lecturas de sensores conocidos,
+la config se refresca (el estado `INACTIVO` y las bandas nuevas ahora se ven) y el token vencido ya
+no deja el servicio en fallo permanente; `ingestion-service` pasa a exponer un endpoint HTTP interno
+(ya levantaba Netty por `WebClient`).

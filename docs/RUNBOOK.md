@@ -197,7 +197,45 @@ Eso garantiza afinidad sensor → partición → instancia (orden por sensor y e
 6. Si el broker no soporta el exchange type (plugin sin habilitar) la instancia registra
    **ERROR** y **no** arranca el consumo: nunca degrada a consumir sin particionar.
 
-## 7. Orquestación SDD-GL
+## 7. Resiliencia del lookup de config (FIX-0007)
+
+`ingestion-service` resuelve la config de cada sensor contra `sensor-registry` por HTTP. Para que
+una caída del registry no tumbe el consumo, el lookup tiene **timeouts explícitos**, un **circuit
+breaker** y una **cache con TTL + last-known-good**:
+
+| Pieza | Config (env) | Default |
+|---|---|---|
+| Timeout de respuesta | `INGESTION_REGISTRY_TIMEOUT` | 2000 ms |
+| Timeout de conexión | `INGESTION_REGISTRY_CONEXION_TIMEOUT` | 1000 ms |
+| TTL de cache de config | `INGESTION_REGISTRY_CACHE_TTL` | 300 s |
+| Fallos consecutivos para abrir | `INGESTION_CIRCUITO_FALLOS` | 5 |
+| Segundos abierto (→ semi-abierto) | `INGESTION_CIRCUITO_SEGUNDOS_ABIERTO` | 30 |
+| Éxitos en semi-abierto para cerrar | `INGESTION_CIRCUITO_EXITOS_CERRAR` | 2 |
+
+Comportamiento:
+
+- Sensor **en cache fresca** → se resuelve sin red.
+- Sensor **en cache vencida** → se refresca; si el registry falla o el circuito está abierto, se
+  usa la copia vencida con WARN (config vieja antes que perder lecturas).
+- Sensor **nunca visto** + registry caído → la lectura va a la DLQ con
+  `x-rechazo: REGISTRY_UNAVAILABLE` (no se pierde silenciosamente).
+- Token del registry **rechazado (401)** → se invalida y se revalida una vez; no deja el servicio
+  en fallo permanente.
+- `ingestion.messaging.retry-max-attempts` **no se usa** (reintentos fuera de alcance en FIX-0007):
+  el camino de fallo es la DLQ. Queda como deuda explícita hasta un work item de reintentos.
+
+Estado del circuito (endpoint interno, sin auth, no expone datos de sensores):
+
+```powershell
+Invoke-WebRequest http://localhost:8080/api/ingestion/resiliencia | Select-Object -Expand Content
+# → {"circuito":"CERRADO","fallosConsecutivos":0,"llamadas":12,"cacheTamano":6, ...}
+```
+
+Los logs también marcan las transiciones: `WARN ... circuit breaker del registry ABIERTO` e
+`INFO ... SEMIABIERTO`/`CERRADO`. Si el circuito queda abierto mucho tiempo, revisar
+`sensor-registry` y su healthcheck (`docker compose ps sensor-registry`).
+
+## 8. Orquestación SDD-GL
 
 - Orquestador: `CLAUDE.md` (Claude Code) / `AGENTS.md` (Antigravity). Arranque: leer
   `contracts/[ID].md` → DRAFT/GATE → `sdd-gate`; APPROVED/LOOP → `sdd-loop`;

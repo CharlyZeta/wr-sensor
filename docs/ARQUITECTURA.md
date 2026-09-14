@@ -162,6 +162,13 @@ compresión día 8 + continuous aggregates = política TimescaleDB futura (spec 
 - **ingestion-service** (FEAT-0011): consumer con ack tras persistir; config del
   sensor vía REST a registry (cache); severidad por bandas inclusivas; último estado
   en memoria; eventos solo en cambio de severidad.
+- **ingestion-service — resiliencia del lookup** (FIX-0007): timeouts de
+  respuesta/conexión explícitos; **circuit breaker propio** en el dominio
+  (CERRADO/ABIERTO/SEMIABIERTO, reloj inyectado); **cache de config con TTL +
+  last-known-good** (copia vencida se usa antes que perder lecturas); refresco del
+  token del registry ante `401`; motivo de DLQ `REGISTRY_UNAVAILABLE` y endpoint
+  interno `GET /api/ingestion/resiliencia` (sin `actuator`). Umbrales por default:
+  5 fallos, 30 s abierto, 2 éxitos para cerrar, TTL 300 s (configurables).
 - **alerting-service** (FEAT-0012): histéresis por **debounce temporal** (subida
   inmediata; bajada confirmada tras ventana `alerting.histeresis-segundos`;
   re-subida cancela); broadcast reactivo `Sinks` → WS `/ws/alertas`.

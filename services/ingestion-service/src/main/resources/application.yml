@@ -18,6 +18,15 @@ ingestion:
   ventana-segundos: 300
   registry:
     base-url: ${REGISTRY_URL:http://localhost:8080}
+    # FIX-0007 BR-001/BR-004/BR-008: resiliencia del lookup de config (nunca hardcodeada)
+    timeout-ms: ${INGESTION_REGISTRY_TIMEOUT:2000}
+    conexion-timeout-ms: ${INGESTION_REGISTRY_CONEXION_TIMEOUT:1000}
+    cache:
+      ttl-segundos: ${INGESTION_REGISTRY_CACHE_TTL:300}
+    circuito:
+      fallos-para-abrir: ${INGESTION_CIRCUITO_FALLOS:5}
+      segundos-abierto: ${INGESTION_CIRCUITO_SEGUNDOS_ABIERTO:30}
+      exitos-para-cerrar: ${INGESTION_CIRCUITO_EXITOS_CERRAR:2}
     auth:
       email: ${REGISTRY_AUTH_EMAIL:viewer@wrsensor.local}
       password: ${REGISTRY_AUTH_PASSWORD:Viewer123!}
