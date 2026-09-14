@@ -1,7 +1,25 @@
 # FIX-0007 — Circuit breaker en llamadas de `ingestion-service` a `sensor-registry`
 
-**Status:** DRAFT
-**Mode:** GATE
+> **PROMOCIONADO (2026-09-13):** este doc de backlog fue revisado en Gate y promocionado como
+> **`contracts/FIX-0007.md`** (Status: DRAFT / Mode: GATE), con el alcance ampliado a
+> **resiliencia del lookup de config** (y no sólo circuit breaker). Hallazgos del Gate que
+> corrigieron el documento: (1) **la cache de config nunca expira** — un sensor desactivado o con
+> bandas nuevas no se refleja jamás, y eso es un bug de negocio más grave que el circuit breaker;
+> (2) **el token del registry nunca se refresca** — el registry valida `exp`, así que tras 1 h de
+> uptime todo sensor no cacheado falla de forma permanente hasta reiniciar (hallazgo nuevo);
+> (3) **BR-04 se apoyaba en un mecanismo inexistente**: `messaging.retry-max-attempts` no se usa en
+> ningún lado (0 referencias), así que el camino de fallo real es sólo DLQ — se adopta el motivo
+> específico `REGISTRY_UNAVAILABLE` y los reintentos quedan fuera de alcance; (4) **BR-05 requería
+> `actuator`** (no está en ningún servicio y el starter no estaba en el `.m2`) → se decidió endpoint
+> propio; (5) el circuit breaker se implementa **en el dominio** (Resilience4j sólo tenía el BOM
+> cacheado y habría exigido descarga, rompiendo el build offline); (6) el doc citaba un "FIX-0008"
+> que **no existe**. Decisiones humanas del 2026-09-13 registradas en el Ambiguity Log del
+> contract (mecanismo propio, cache local con TTL + last-known-good, sólo DLQ, endpoint propio y
+> umbrales moderados).
+> Este archivo queda como registro histórico del backlog.
+
+**Status:** PROMOCIONADO a `contracts/FIX-0007.md`
+**Mode:** GATE (histórico)
 **Servicio(s) afectado(s):** `ingestion-service`
 **Relacionado:** `docker-compose.yml` (`REGISTRY_URL`, `REGISTRY_AUTH_EMAIL`)
 **Depende de:** ninguno
