@@ -17,3 +17,8 @@ services:
     ports: ["8082:8082"]
   alerting-service:
     ports: ["8083:8083"]
+  # FIX-0007: endpoint interno de estado del circuit breaker / cache. Ingestion no publica
+  # puerto en el compose base (es sólo consumer); en dev se expone en 8090 para poder consultar
+  # GET /api/ingestion/resiliencia desde el host.
+  ingestion-service:
+    ports: ["8090:8080"]

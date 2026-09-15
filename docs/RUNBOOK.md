@@ -224,10 +224,13 @@ Comportamiento:
 - `ingestion.messaging.retry-max-attempts` **no se usa** (reintentos fuera de alcance en FIX-0007):
   el camino de fallo es la DLQ. Queda como deuda explícita hasta un work item de reintentos.
 
-Estado del circuito (endpoint interno, sin auth, no expone datos de sensores):
+Estado del circuito (endpoint interno, sin auth, no expone datos de sensores). En el compose base
+`ingestion-service` no publica puerto (es sólo consumer), así que se consulta **con el override de
+desarrollo**, que lo expone en `:8090`:
 
 ```powershell
-Invoke-WebRequest http://localhost:8080/api/ingestion/resiliencia | Select-Object -Expand Content
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+Invoke-WebRequest http://localhost:8090/api/ingestion/resiliencia | Select-Object -Expand Content
 # → {"circuito":"CERRADO","fallosConsecutivos":0,"llamadas":12,"cacheTamano":6, ...}
 ```
 

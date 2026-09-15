@@ -7,6 +7,14 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [No publicado] — `FEAT-0008` (en Gate)
+
+Habilitadores del frontend, con decisiones ya aprobadas: **CORS configurable** en el gateway,
+**autenticación del handshake WebSocket** (token validado en el gateway, sin abrir sesión sin
+token) y **`GET /api/sensores/resumen`** en `query-api` (todos los sensores con metadata + última
+lectura en una sola consulta, para no hacer N+1 desde el mapa). Fuera de alcance: el SPA React
+(`FEAT-0009`), la ruta del simulador y el historial de alertas. Ver `contracts/FEAT-0008.md`.
+
 ## [FIX-0007] — 2026-09-14 — Resiliencia del lookup de config de sensores
 
 `contracts/FIX-0007.md` (30/30 ✅) · auditoría `.sdd/runs/FIX-0007-20260913-153000.md` · ADR-0018 ·

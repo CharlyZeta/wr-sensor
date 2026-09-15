@@ -9,7 +9,7 @@
 📊 SDD-GL Status
 
 🔴 DRAFT (Gate — awaiting review)
-   └── (ninguno)
+   └── FEAT-0008: habilitadores del frontend (CORS, auth de WebSocket, resumen de sensores) [0/31]
 
 🟡 APPROVED (Loop in progress)
    └── (ninguno)
@@ -34,8 +34,9 @@
    └── FIX-0006: versionado del schema de sensor.lecturas (payload v1) [31/31 ✅]
    └── FIX-0007: resiliencia del lookup de config (timeouts, breaker, cache TTL) [30/30 ✅]
 
-Total: 18 contracts | 0 in Gate | 0 in Loop | 18 resolved
-Criterios de completitud: 377/377 ✅ (253 en FEATs + 124 en FIXes)
+Total: 19 contracts | 1 in Gate | 0 in Loop | 18 resolved
+Criterios de completitud: 377/377 ✅ en los 18 resueltos (253 en FEATs + 124 en FIXes)
+                        + 31 criterios pendientes en FEAT-0008 (Gate, esperando HO-Gate)
 ```
 
 ## Detalle por contract
@@ -111,21 +112,24 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
 
 ### Estado del backlog
 
+- **En curso (Gate)**: `FEAT-0008` — habilitadores del frontend (CORS, autenticación de WebSocket,
+  `GET /api/sensores/resumen`), 31 criterios, esperando HO-Gate. Alcance y decisiones aprobadas en
+  `contracts/FEAT-0008.md`.
 - **Contracts de fix pendientes: ninguno** (`FIX-0001..FIX-0007` RESOLVED, 7/7).
 - **Documentos de backlog promovidos**: `docs/FIX-0002-schema-versionado-lecturas.md` → `FIX-0006`,
   `docs/FIX-0003..0004` → `FIX-0003`/`FIX-0004`, `docs/FIX-0006-particionamiento-consumers.md` →
   `FIX-0005`, `docs/FIX-0005-gateway-rate-limiting.md` → `FEAT-0007` (ver mapeo en
   `docs/ESTADO-PROYECTO.md` §3d).
-- **Follow-ups abiertos (sin contract todavía)**:
-  1. Autenticación de WebSocket (`/ws/alertas`, `/ws/sensores/*` no validan token) — brecha
-     documentada en ADR-0016.
-  2. CORS en el gateway (bloquea el frontend React desde el navegador).
-  3. Persistir `ultimaSeveridad` de `ingestion-service` (hoy en memoria por instancia).
-  4. Afinidad de `alerting-service` si se escala (histéresis en memoria) — ADR-0015.
-  5. Reintentos con backoff en el consumo (la config `messaging.retry-max-attempts` está **sin uso**)
+- **Follow-ups técnicos abiertos (sin contract todavía)**:
+  1. Persistir `ultimaSeveridad` de `ingestion-service` (hoy en memoria por instancia).
+  2. Afinidad de `alerting-service` si se escala (histéresis en memoria) — ADR-0015.
+  3. Reintentos con backoff en el consumo (la config `messaging.retry-max-attempts` está **sin uso**)
      — ADR-0018.
-- **Roadmap v1 restante**: frontend React (dashboards + mapa), Redis para `/actual`, continuous
-  aggregates de TimescaleDB (§9.2) y manifiestos K8s (documentación).
+  4. Historial de alertas consultable (hoy sólo el WS en vivo).
+  5. Decisión de tiles del mapa (OSM remoto vs mapa esquemático offline) — se resuelve en `FEAT-0009`.
+- **Roadmap v1 restante**: **frontend React** (`FEAT-0009` y siguientes: Fase A mapa+dashboards,
+  Fase B CRUD/simulador, Fase C agregados + historial de alertas), Redis para `/actual`,
+  continuous aggregates de TimescaleDB (§9.2) y manifiestos K8s (documentación).
 
 ### Notas de entorno (relevantes para reproducir)
 

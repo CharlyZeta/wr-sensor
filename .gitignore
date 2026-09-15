@@ -3,6 +3,10 @@
 **/build/
 *.class
 
+# Frontend (FEAT-0009): dependencias y artefactos de build
+**/node_modules/
+**/dist/
+
 # IDE
 .idea/
 *.iml

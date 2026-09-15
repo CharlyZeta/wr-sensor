@@ -333,13 +333,14 @@ Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idemp
 >   `docker-compose.dev.yml` para debug, límites moderados (login 10/60 s, lectura 120/60 s,
 >   default 300/60 s, WS 30/60 s) y auth de WebSocket fuera de alcance (brecha documentada).
 > - **Pendientes reales del backlog**: ninguno. `docs/FIX-0007-circuit-breaker.md` →
->   **PROMOCIONADO como `contracts/FIX-0007.md`** (Gate EXPRESS 2026-09-13, pendiente HO-Gate), con
->   el alcance ampliado a **resiliencia del lookup de config**: timeouts explícitos, circuit breaker
->   propio en el dominio, cache con TTL + last-known-good, refresco del token ante `401`, DLQ con
->   motivo `REGISTRY_UNAVAILABLE` y endpoint interno de estado. Hallazgos del Gate: la cache nunca
->   expiraba (sensor desactivado seguía ingiriéndose) y el token nunca se refrescaba (fallo
->   permanente tras la expiración del JWT). Quedan como follow-ups sin doc: auth de WebSocket y
->   CORS (FEAT-0007), persistir `ultimaSeveridad` y afinidad de `alerting-service` (FIX-0005).
+>   **PROMOCIONADO como `contracts/FIX-0007.md`** (RESOLVED 2026-09-14).
+> - **En curso**: `contracts/FEAT-0008.md` — **habilitadores del frontend** (CORS configurable, auth
+>   del handshake WebSocket y `GET /api/sensores/resumen`), Gate STRICT, 31 criterios, **pendiente
+>   HO-Gate**. Decisiones humanas 2026-09-14: el SPA lo sirve el gateway (mismo origen), CORS
+>   acotado, auth de WS ahora, endpoint de resumen, simulador fuera del gateway, mapa con **Leaflet**
+>   y frontend arrancando por la **Fase A** (el SPA es `FEAT-0009`).
+> - **Handoff**: `docs/CONTINUIDAD.md` resume estado, proceso, comandos, entorno y trampas para
+>   retomar el proyecto sin contexto previo.
 > - `docs/FIX-0002-schema-versionado-lecturas.md` → **PROMOCIONADO como `contracts/FIX-0006.md`**
 >   (Gate EXPRESS 2026-09-13, pendiente HO-Gate): renumerado porque `contracts/FIX-0002` es el
 >   parser de alertas. Decisiones humanas: consumers migrados a DTO + Jackson, tolerancia hacia
