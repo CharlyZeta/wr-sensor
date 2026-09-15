@@ -11,11 +11,13 @@
   orquestada con Docker Compose, con un **punto de entrada único** (`api-gateway`).
 - **Cómo se trabajó**: con el frame **SDD-GL** (spec-driven, Gate → aprobación humana → Loop
   autónomo → RESOLVED) instalado en este repo. Cada work item tiene su **Contract** en `contracts/`.
-- **Estado**: **19 work items RESOLVED** (12 FEAT + 7 FIX), **408/408 criterios ✅**, **413 tests**
-  (306 unit + 107 IT). No queda trabajo abierto: `FEAT-0008` (CORS, auth de WebSocket y resumen de
-  sensores) cerró su Loop el 2026-09-14 y sólo espera la **validación humana del resultado**.
-- **Siguiente paso natural**: abrir `FEAT-0009` — SPA React Fase A (login + mapa Leaflet + detalle en
-  vivo por WS autenticado + feed de alertas + serie de 24 h), servido por el gateway.
+- **Estado**: **19 work items RESOLVED** (12 FEAT + 7 FIX), **408/408 criterios ✅**, **414 tests**
+  (307 unit + 107 IT). **Abierta la serie del frontend**: 4 contracts en **Gate** (DRAFT, esperando
+  aprobación humana) que dividen el SPA por capacidad funcional — `FEAT-0009` (núcleo: sesión, shell,
+  mapa y hosting desde el gateway), `FEAT-0014` (detalle en vivo: WS de lecturas + serie de 24 h),
+  `FEAT-0015` (alertas en vivo: feed + refresco del mapa) y `FEAT-0016` (administración y demo).
+- **Siguiente paso natural**: aprobar el Gate de `FEAT-0009` (es la base de los otros tres) y ejecutar
+  su Loop; después `FEAT-0014`/`FEAT-0015` en cualquier orden y `FEAT-0016` al final.
 
 ## 1. Qué leer, en este orden
 
@@ -130,7 +132,7 @@ estado del circuit breaker `http://localhost:8090/api/ingestion/resiliencia` (co
 ## 6. Último trabajo cerrado: `FEAT-0008` (Loop 31/31 ✅, pendiente validación humana)
 
 **Qué es:** los tres habilitadores que el frontend necesita del backend. **Los tres están
-implementados y con tests verdes** (`api-gateway` 67+29 · `query-api` 33+8).
+implementados y con tests verdes** (`api-gateway` 68+29 · `query-api` 33+8).
 
 | # | Alcance | Estado / decisión aprobada |
 |---|---|---|
@@ -148,43 +150,48 @@ y WS del SPA servido por el gateway).
 
 ## 7. Qué sigue después
 
-1. **`FEAT-0009` — frontend React (Fase A)**: login + **mapa Leaflet** con los 6 sensores
-   coloreados por severidad + detalle con última lectura **en vivo por WS** + feed de alertas
-   confirmadas + serie de 24 h. El SPA se sirve **desde el gateway** (build de Vite copiado a los
-   recursos estáticos del gateway) — eso hace que en producción no haga falta CORS, pero se
-   mantiene para desarrollo y consumidores externos.
-   - Toolchain: **Node 26.3.0 / npm 11.16.0 ya instalados** (no hay pnpm/yarn). El build del
-     frontend **necesita red** (npm registry) — es la primera pieza que rompe la propiedad
-     "build offline" del backend; conviene commitear el `package-lock.json` y construir el SPA en
-     su propio stage de Docker.
-   - `node_modules/` y `dist/` ya están en el `.gitignore` (agregados al preparar FEAT-0009).
-   - Tests del frontend: **Vitest + React Testing Library + MSW** (y Playwright para E2E). El
-     Contract del frontend debe declarar ese runner como criterio verificable.
-   - El WS se autentica con `?token=<jwt>` (FEAT-0008): el SPA tiene que abrir
-     `ws(s)://<mismo-origen>/ws/alertas?token=…` y re-loguearse cuando el token expire (60 min).
-   - El mapa se alimenta de **`GET /api/sensores/resumen`** (una llamada), no de N+1.
-2. **Fase B**: CRUD de sensores (ADMIN) con validación y errores de dominio finos; manejo explícito
-   de `calidad=ERROR_SENSOR`; control del simulador para la demo.
-3. **Fase C**: rangos largos con **continuous aggregates** (spec §9.2), historial de alertas
-   consultable, export CSV.
-4. **Follow-ups técnicos abiertos** (sin contract todavía): persistir `ultimaSeveridad` de ingestion
-   (hoy en memoria por instancia), afinidad de `alerting-service` si se escala, **reintentos con
-   backoff** (`messaging.retry-max-attempts` está **sin uso** — deuda declarada en FIX-0007),
-   historial de alertas, decisión de tiles del mapa (OSM remoto vs mapa esquemático offline),
-   **caché del resumen** en Redis y **autenticación de los REST en el gateway** (FEAT-0008 sólo
-   autenticó el upgrade WS).
+**Serie del frontend abierta el 2026-09-14: 4 contracts en Gate.** División por capacidad funcional
+aprobada por el humano; los cuatro son **sólo frontend** (no cambian el backend, cuyo contrato cerró
+`FEAT-0008`).
+
+| Parte | Contract | Alcance | Criterios | Gate |
+|---|---|---|---|---|
+| 1 | `FEAT-0009` | SPA núcleo: sesión (`sessionStorage` + guard), shell/rutas, cliente API (errores por `code`, `429`/`Retry-After`), **mapa Leaflet** con `GET /api/sensores/resumen`, y **hosting del SPA desde el gateway** (fallback de rutas sin romper el 404 de la API) | 32 | STRICT |
+| 2 | `FEAT-0014` | detalle en vivo: `WS /ws/sensores/{id}?token=` (una conexión por vista, backoff + estados) + serie de 24 h con histórico keyset (`limit` máx 1000 ⇒ se pagina por cursor) + tabla/gráfico | 29 | EXPRESS |
+| 3 | `FEAT-0015` | alertas en vivo: `WS /ws/alertas?token=` (una conexión por pestaña), feed con dedupe y tope, contador de críticas, refresco del mapa **con debounce** | 29 | EXPRESS |
+| 4 | `FEAT-0016` | administración y demo (Fase B): CRUD de sensores con errores de dominio por `code`, baja lógica con confirmación, panel del simulador **sólo** si `VITE_SIMULADOR_URL` está configurada | 31 | STRICT |
+
+1. **`FEAT-0009` primero** (crea `web/`, el hosting y el runner de tests; los otros tres dependen de
+   esa base). `FEAT-0014` y `FEAT-0015` son independientes entre sí; `FEAT-0016` va al final.
+2. **Decisiones ya propuestas en cada Ambiguity Log** (marcadas "sujeto a HO-Gate"): Vite + React +
+   TypeScript estricto, `web/` en la raíz, Vitest + RTL + MSW (+ Playwright para e2e), CSS Modules con
+   tokens propios, react-router + hooks sobre `fetch` (sin TanStack Query), token en `sessionStorage`,
+   tiles de Leaflet configurables (`VITE_TILES_URL`), build del SPA por npm y copiado al gateway por
+   **stage de Node en la imagen Docker** (el `mvn -o` del backend queda intacto), gráfico de la serie
+   en **SVG propio**, feed de alertas **en memoria** (sin historial consultable) y panel del simulador
+   apagado por default.
+3. **Fase C (sin contract todavía)**: rangos largos con **continuous aggregates** (spec §9.2), export
+   CSV, comparación de sensores e historial de alertas consultable; Redis para `/actual` y caché del
+   resumen; manifiestos K8s (sólo documentación).
+4. **Follow-ups técnicos abiertos** (sin contract): persistir `ultimaSeveridad` de ingestion (hoy en
+   memoria por instancia), afinidad de `alerting-service` si se escala, **reintentos con backoff**
+   (`messaging.retry-max-attempts` está **sin uso** — deuda declarada en FIX-0007), severidad por
+   lectura en el payload del WS de `query-api` (si la UX de `FEAT-0014` lo exigiera → `FIX`),
+   decisión de tiles (OSM remoto vs esquema offline) y **autenticación de los REST en el gateway**
+   (FEAT-0008 sólo autenticó el upgrade WS).
 
 ## 8. Cómo retomar (checklist)
 
 1. `git log --oneline -5` y `git status` → confirmar que `main` está al día con `origin/main`.
 2. Leer `docs/ESTADO-SDD.md` (tablero) y este documento.
-3. **No hay contracts en vuelo**: todos están RESOLVED. Para el próximo work item (`FEAT-0009`)
-   hay que crear el Contract con `/sdd-feature` y **el humano** aprueba
-   (`Status: APPROVED` + `Mode: LOOP`) antes de que arranque el Loop.
+3. **Hay 4 contracts en Gate y ninguno en Loop**: para ejecutar uno hay que aprobarlo
+   (`Status: APPROVED` + `Mode: LOOP` en `contracts/<ID>.md`) — **sólo el humano puede hacerlo**.
+   Recomendado arrancar por `FEAT-0009`.
 4. Verificar el entorno antes de tocar código:
-   `docker version` (para ITs), `node --version` (para el frontend), `$env:JAVA_HOME` y `$mvn`.
+   `docker version` (para ITs), `node --version` (para el frontend: hay Node 26.3.0 / npm 11.16.0),
+   `$env:JAVA_HOME` y `$mvn`.
 5. Correr la línea base para asegurarse de que el árbol está sano:
-   `& $mvn -o -f services\api-gateway\pom.xml test` (67 unit) y
+   `& $mvn -o -f services\api-gateway\pom.xml test` (68 unit) y
    `& $mvn -o -f services\query-api\pom.xml test` (33 unit) — son los módulos que tocó el último
    work item. Los ITs del gateway **no necesitan Docker**; los de query-api sí.
 6. Continuar con el work item abierto siguiendo `protocol/gate.md` o `protocol/loop.md`.

@@ -56,11 +56,12 @@ sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico key
 | `data-simulator` | lecturas sintéticas | hex · Reactor RabbitMQ · stateless |
 | `ingestion-service` | consume + severidad + persistencia | hex · R2DBC **TimescaleDB** hypertable · DLQ/DLX configurable · consumo particionado |
 | `alerting-service` | histéresis + notificación | hex · debounce temporal · WebSocket `/ws/alertas` |
-| `query-api` | consulta histórica/última/tiempo real | hex · R2DBC lectura · consumer `sensor.lecturas` → WS por sensor |
+| `query-api` | consulta histórica/última/tiempo real | hex · R2DBC lectura · consumer `sensor.lecturas` → WS por sensor · `GET /api/sensores/resumen` |
+| `web/` (SPA) | dashboard del operador | React + TypeScript + Vite · mapa **Leaflet** · servido por el gateway (mismo origen) — en Gate: `FEAT-0009/0014/0015/0016` |
 
 Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
 paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
-`application.yml`, tests trazables a los contracts (BR/AC/AF) — **413 verdes**.
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **414 verdes**.
 Punto de entrada único con **CORS configurable y WebSocket autenticado** (`FEAT-0008`).
 Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 
@@ -105,11 +106,17 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FEAT-0007` | `api-gateway`: entrada única + rate limiting | ✅ RESOLVED | 31 · IT 16 |
 | `FIX-0006` | Versionado del schema de `sensor.lecturas` (v1) | ✅ RESOLVED | 27 · IT 7 |
 | `FIX-0007` | Resiliencia del lookup de config (breaker + cache TTL) | ✅ RESOLVED | 20 · IT 5 |
-| `FEAT-0008` | Habilitadores del frontend: CORS, WS autenticado y resumen | ✅ RESOLVED | 58 · IT 20 |
+| `FEAT-0008` | Habilitadores del frontend: CORS, WS autenticado y resumen | ✅ RESOLVED | 59 · IT 20 |
+| `FEAT-0009` | SPA núcleo: sesión, shell, mapa y hosting desde el gateway | 🟡 DRAFT (Gate) | 32 criterios — parte 1 de 4 |
+| `FEAT-0014` | SPA: detalle en vivo (WS de lecturas + serie de 24 h) | 🟡 DRAFT (Gate) | 29 criterios — parte 2 de 4 |
+| `FEAT-0015` | SPA: alertas en vivo (feed + refresco del mapa) | 🟡 DRAFT (Gate) | 29 criterios — parte 3 de 4 |
+| `FEAT-0016` | SPA: administración y demo (CRUD ADMIN + simulador) | 🟡 DRAFT (Gate) | 31 criterios — parte 4 de 4 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 20 · `ingestion-service` 121 ·
-`alerting-service` 12 · `query-api` 41 · `api-gateway` 96 → **413 tests** (JUnit 5; ITs con
+`alerting-service` 12 · `query-api` 41 · `api-gateway` 97 → **414 tests** (JUnit 5; ITs con
 Testcontainers — los del gateway usan downstreams stub; detalle por módulo en `docs/RUNBOOK.md` §2).
+La serie del frontend (`FEAT-0009/0014/0015/0016`) suma una suite propia de **Vitest + RTL + MSW**
+(y Playwright para e2e) que se documentará al ejecutarse.
 
 ---
 

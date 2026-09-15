@@ -32,12 +32,19 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | FEAT-0007 | `api-gateway`: punto de entrada único, rate limiting y correlación | 2026-09-13 | 2026-09-13 | ✅ 33/33 | Unit (31) · IT e2e (16) |
 | FIX-0006 | Versionado del schema de `sensor.lecturas` (payload v1) | 2026-09-13 | 2026-09-13 | ✅ 31/31 | Unit (27) · IT e2e (7) |
 | FIX-0007 | Resiliencia del lookup de config (breaker + cache TTL) | 2026-09-14 | 2026-09-14 | ✅ 30/30 | Unit (20) · IT e2e (5) |
-| FEAT-0008 | Habilitadores del frontend: CORS, WS autenticado y resumen | 2026-09-14 | 2026-09-14 | ✅ 31/31 | Gateway unit (36 + docs 10) · query-api unit (22) · IT (20) |
+| FEAT-0008 | Habilitadores del frontend: CORS, WS autenticado y resumen | 2026-09-14 | 2026-09-14 | ✅ 31/31 | Gateway unit (36 + docs 11) · query-api unit (22) · IT (20) |
+| FEAT-0009 | SPA núcleo: sesión, shell, mapa y hosting desde el gateway | *(Gate)* | — | 🔴 0/32 (Gate STRICT) | Pendiente de HO-Gate: parte 1 de 4 del frontend |
+| FEAT-0014 | Detalle en vivo: WS de lecturas + serie de 24 h | *(Gate)* | — | 🔴 0/29 (Gate EXPRESS) | Pendiente de HO-Gate: parte 2 de 4 del frontend |
+| FEAT-0015 | Alertas en vivo: feed + refresco del mapa | *(Gate)* | — | 🔴 0/29 (Gate EXPRESS) | Pendiente de HO-Gate: parte 3 de 4 del frontend |
+| FEAT-0016 | Administración y demo: CRUD (ADMIN) + panel del simulador | *(Gate)* | — | 🔴 0/31 (Gate STRICT) | Pendiente de HO-Gate: parte 4 de 4 del frontend |
 
 > FEAT-0001: completado en sesiones previas (bitácora). FEAT-0002 quedó
 > interrumpido en Main Flow ⏳ y se reanudó/cerró el 2026-09-09.
 > FEAT-0008 es el único contract con `Gate-Mode: STRICT` cerrado hasta ahora (los demás,
 > EXPRESS): el Gate humano aprobó alcance, decisiones y Ambiguity Log antes del Loop.
+> **FEAT-0009/0014/0015/0016** son la **serie del frontend**, abierta el 2026-09-14 y dividida por
+> capacidad funcional (aprobado por el humano): núcleo+mapa, detalle en vivo, alertas y
+> administración/demo. Están en **Gate** (DRAFT) esperando el HO-Gate que habilita su Loop.
 
 ## Suites de tests verdes por módulo
 
@@ -48,9 +55,9 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | `ingestion-service` | 88 | 33 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · `FIX0006EsquemaTest` 6 · `FIX0006ParseoTest` 8 · `FIX0006SecuenciaTest` 5 · `FIX0006DocsTest` 4 · `CircuitoResilienciaTest` 5 · `FIX0007ResilienciaTest` 10 · `FIX0007ObservabilidadTest` 2 · `FIX0007DocsTest` 3 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005 + FIX-0006 + FIX-0007) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
 | `query-api` | 33 | 8 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 · `FIX0006RealtimeTest` 4 · `FEAT0008ResumenTest` 7 · `FEAT0008RegistryAdapterTest` 15 · ITs (`FEAT0013MainFlowIT` 1 + `FEAT0008ResumenIT` 7) |
-| `api-gateway` | 67 | 29 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · `VerificadorJwtTest` 7 · `AutenticadorWsTest` 8 · `FiltroCorsTest` 11 · `FEAT0008DocsTest` 10 · ITs (`FEAT0007MainFlowIT` 16 + `FEAT0008MainFlowIT` 13) |
+| `api-gateway` | 68 | 29 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · `VerificadorJwtTest` 7 · `AutenticadorWsTest` 8 · `FiltroCorsTest` 11 · `FEAT0008DocsTest` 11 · ITs (`FEAT0007MainFlowIT` 16 + `FEAT0008MainFlowIT` 13) |
 
-**Total: 306 unit/assert + 107 ITs = 413 verdes** (JUnit 5, AssertJ, StepVerifier,
+**Total: 307 unit/assert + 107 ITs = 414 verdes** (JUnit 5, AssertJ, StepVerifier,
 WebTestClient, Testcontainers — Maven offline). Los `*IT` se corren aparte:
 `mvn -o test -Dtest='*IT'` (los de `api-gateway` no necesitan Docker: usan downstreams
 stub en proceso).
@@ -119,16 +126,22 @@ stub en proceso).
 
 ## Pendientes (roadmap v1)
 
-**Siguiente:** `FEAT-0009` — SPA React Fase A (login + mapa Leaflet con
-`GET /api/sensores/resumen` + detalle en vivo por WS + feed de alertas + serie de 24 h), servido
-por el gateway (mismo origen) con Vitest + RTL + MSW + Playwright. Luego: `FEAT-0009` Fase B/C,
-Redis para `/actual` y caché del resumen → continuous aggregates de TimescaleDB (§9.2
-raw/aggregate) → manifiestos K8s (sólo documentación).
+**En Gate (4 contracts, serie del frontend)** — orden recomendado de ejecución:
+`FEAT-0009` (núcleo: sesión + shell + mapa + hosting en el gateway, 32 criterios) → `FEAT-0014`
+(detalle en vivo: WS de lecturas + serie de 24 h, 29) y `FEAT-0015` (alertas en vivo: feed + refresco
+del mapa, 29) — independientes entre sí → `FEAT-0016` (administración y demo: CRUD + panel del
+simulador, 31). Los cuatro son **sólo frontend**: no cambian el backend (el contrato de los servicios
+cerró en FEAT-0008).
+
+**Después (Fase C, sin contract)**: agregados para rangos largos (continuous aggregates §9.2), export
+CSV, comparación de sensores e historial de alertas consultable (requiere backend), Redis para
+`/actual` y caché del resumen, manifiestos K8s (documentación). Gestión de usuarios/roles desde el SPA
+tampoco tiene backend hoy.
 
 Backlog de fixes sin contract (en `docs/FIX-*.md`) y follow-ups registrados por FEAT-0008:
 persistir `ultimaSeveridad`, afinidad de `alerting-service` al escalar, reintentos/backoff
-(`messaging.retry-max-attempts` declarado sin uso), historial de alertas consultable y decisión de
-tiles del mapa (OSM remoto vs esquema offline) para FEAT-0009. Servicios cerrados a la fecha: 6
+(`messaging.retry-max-attempts` declarado sin uso) y severidad por lectura en el payload del WS de
+`query-api` (si la UX de `FEAT-0014` lo exigiera). Servicios cerrados a la fecha: 6
 (sensor-registry, data-simulator, ingestion, alerting, query-api, api-gateway).
 
 

@@ -175,8 +175,51 @@ class FEAT0008DocsTest {
         assertThat(leer("contracts/FEAT-0008.md"))
                 .as("el contract cierra con el mapa completo")
                 .contains("Status: RESOLVED").doesNotContain("|❌");
-        assertThat(leer("docs/ESTADO-SDD.md")).contains("FEAT-0008").contains("408/408");
-        assertThat(leer("docs/REGISTRO-SDD.md")).contains("FEAT-0008").contains("403 verdes");
+        assertThat(leer("docs/ESTADO-SDD.md")).contains("FEAT-0008");
+        assertThat(leer("docs/REGISTRO-SDD.md")).contains("FEAT-0008");
         assertThat(leer("docs/CHANGELOG.md")).contains("[FEAT-0008]");
+    }
+
+    /**
+     * Los totales de tests se repiten en cuatro documentos (README, RUNBOOK §2, REGISTRO-SDD y
+     * ESTADO-SDD): si se actualiza uno solo, el resto queda mintiendo. Este test los compara entre sí
+     * en lugar de fijar un número (el snapshot se desactualiza en cada work item; la consistencia no).
+     */
+    @Test
+    @DisplayName("BR-011: los totales de suites coinciden entre README, RUNBOOK, REGISTRO-SDD y ESTADO-SDD")
+    void br011_totalesConsistentes() throws IOException {
+        String runbook = leer("docs/RUNBOOK.md");
+        String estado = leer("docs/ESTADO-SDD.md");
+        String registro = leer("docs/REGISTRO-SDD.md");
+        String readme = leer("README.md");
+
+        String tablaTotal = "\\|\\s*\\*\\*Total\\*\\*\\s*\\|\\s*\\*\\*(\\d+)\\*\\*\\s*\\|\\s*\\*\\*(\\d+)\\*\\*"
+                + "\\s*\\|\\s*\\*\\*(\\d+)\\*\\*";
+        java.util.List<String> runbookTotales = grupos(runbook, tablaTotal);
+        java.util.List<String> estadoTotales = grupos(estado, tablaTotal);
+        java.util.List<String> registroTotales = grupos(registro,
+                "Total: (\\d+) unit/assert \\+ (\\d+) ITs = (\\d+) verdes");
+
+        assertThat(runbookTotales).as("RUNBOOK §2 publica el total de suites").hasSize(3);
+        assertThat(estadoTotales).as("el tablero publica el total de suites").hasSize(3);
+        assertThat(registroTotales).as("el registro publica el total de suites").hasSize(3);
+        assertThat(estadoTotales).as("tablero vs RUNBOOK").isEqualTo(runbookTotales);
+        assertThat(registroTotales).as("registro vs RUNBOOK").isEqualTo(runbookTotales);
+
+        String total = runbookTotales.get(2);
+        assertThat(readme).as("el README declara el mismo total").contains("**" + total + " tests**")
+                .contains("**" + total + " verdes**");
+    }
+
+    private static java.util.List<String> grupos(String texto, String patron) {
+        var matcher = java.util.regex.Pattern.compile(patron).matcher(texto);
+        if (!matcher.find()) {
+            return java.util.List.of();
+        }
+        java.util.List<String> valores = new java.util.ArrayList<>();
+        for (int i = 1; i <= matcher.groupCount(); i++) {
+            valores.add(matcher.group(i));
+        }
+        return valores;
     }
 }

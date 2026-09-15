@@ -9,7 +9,10 @@
 📊 SDD-GL Status
 
 🔴 DRAFT (Gate — awaiting review)
-   └── (ninguno)
+   └── FEAT-0009: SPA núcleo — sesión, shell, mapa y hosting desde el gateway [0/32]
+   └── FEAT-0014: detalle en vivo — lecturas por WebSocket y serie de 24 h [0/29]
+   └── FEAT-0015: alertas en vivo — feed y refresco del mapa [0/29]
+   └── FEAT-0016: administración y demo — CRUD (ADMIN) y panel del simulador [0/31]
 
 🟡 APPROVED (Loop in progress)
    └── (ninguno)
@@ -35,15 +38,18 @@
    └── FIX-0006: versionado del schema de sensor.lecturas (payload v1) [31/31 ✅]
    └── FIX-0007: resiliencia del lookup de config (timeouts, breaker, cache TTL) [30/30 ✅]
 
-Total: 19 contracts | 0 in Gate | 0 in Loop | 19 resolved
-Criterios de completitud: 408/408 ✅ (253 en FEATs + 124 en FIXes + 31 de FEAT-0008)
-                         pendientes: ninguno
+Total: 23 contracts | 4 in Gate (serie del frontend) | 0 in Loop | 19 resolved
+Criterios de completitud: 408/408 ✅ en los 19 resueltos (253 en FEATs + 124 en FIXes + 31 de FEAT-0008)
+                         + 121 criterios en Gate: FEAT-0009 32, FEAT-0014 29, FEAT-0015 29, FEAT-0016 31
 ```
 
-> **HO-Gate pendiente (humano):** FEAT-0008 tiene el Loop completo y el mapa en 31/31, pero la
-> validación final del work item es del humano (protocolo SDD-GL). El hallazgo del Loop que amerita
-> su revisión está en ADR-0019 (el primer CORS rechazaba el mismo origen y rompía login + WS del SPA
-> servido por el gateway) y en `docs/REGISTRO-SDD.md` §Fixes ítem 11.
+> **HO-Gate pendiente (humano) — dos cosas:**
+> 1. **Cierre del resultado de FEAT-0008** (Loop completo, 31/31): el hallazgo que amerita revisión está
+>    en ADR-0019 (el primer CORS rechazaba el mismo origen y rompía login + WS del SPA servido por el
+>    gateway) y en `docs/REGISTRO-SDD.md` §Fixes ítem 11.
+> 2. **Aprobación del Gate de la serie del frontend** (`FEAT-0009`, `FEAT-0014`, `FEAT-0015`,
+>    `FEAT-0016`, todos en DRAFT con recomendaciones marcadas "sujeto a HO-Gate"): pasar
+>    `Status: APPROVED` + `Mode: LOOP` en el que se quiera ejecutar primero (`FEAT-0009` es la base).
 
 ## Detalle por contract
 
@@ -68,6 +74,10 @@ Criterios de completitud: 408/408 ✅ (253 en FEATs + 124 en FIXes + 31 de FEAT-
 | FIX-0006 | `data-simulator` + `ingestion-service` + `query-api` — payload v1 | 31/31 ✅ | ADR-0017 · `.sdd/runs/FIX-0006-20260913-150000.md` |
 | FIX-0007 | `ingestion-service` — resiliencia del lookup de config | 30/30 ✅ | ADR-0018 · `.sdd/runs/FIX-0007-20260913-153000.md` |
 | FEAT-0008 | `api-gateway` (CORS + auth WS + ruteo) y `query-api` (resumen del mapa) | 31/31 ✅ | ADR-0019 · `.sdd/runs/FEAT-0008-*.md` |
+| FEAT-0009 | **SPA (`web/`)** — sesión, shell, mapa y hosting desde el gateway | 0/32 🔴 Gate | contract `contracts/FEAT-0009.md` (parte 1 de 4) |
+| FEAT-0014 | **SPA (`web/`)** — detalle en vivo (WS lecturas + serie 24 h) | 0/29 🔴 Gate | contract `contracts/FEAT-0014.md` (parte 2 de 4) |
+| FEAT-0015 | **SPA (`web/`)** — alertas en vivo (feed + refresco del mapa) | 0/29 🔴 Gate | contract `contracts/FEAT-0015.md` (parte 3 de 4) |
+| FEAT-0016 | **SPA (`web/`)** — administración y demo (CRUD + simulador) | 0/31 🔴 Gate | contract `contracts/FEAT-0016.md` (parte 4 de 4) |
 
 > Los conteos exactos de tests son **por módulo** (tabla siguiente): un mismo archivo de test puede
 > cubrir criterios de más de un contract, así que atribuir tests a un contract individual sería
@@ -83,8 +93,8 @@ Criterios de completitud: 408/408 ✅ (253 en FEATs + 124 en FIXes + 31 de FEAT-
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 67 | 29 | 96 |
-| **Total** | **306** | **107** | **413** |
+| `api-gateway` | 68 | 29 | 97 |
+| **Total** | **307** | **107** | **414** |
 
 Cómo reproducirlo:
 
@@ -119,13 +129,28 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
 
 ### Estado del backlog
 
-- **En curso (Gate)**: ninguno. `FEAT-0008` cerró su Loop (31/31) y espera la validación humana del
-  resultado; `FEAT-0009` (SPA React Fase A) es el siguiente work item a abrir con `/sdd-feature`.
+- **En Gate (esperando HO-Gate)**: la **serie del frontend**, dividida en 4 partes por capacidad
+  funcional (aprobado por el humano 2026-09-14):
+
+  | Parte | Contract | Alcance | Criterios |
+  |---|---|---|---|
+  | 1 | `FEAT-0009` | SPA núcleo: sesión, shell, cliente API, **mapa** (`GET /api/sensores/resumen`) y **hosting desde el gateway** | 32 |
+  | 2 | `FEAT-0014` | detalle en vivo: `WS /ws/sensores/{id}?token=` + serie de 24 h (histórico keyset) | 29 |
+  | 3 | `FEAT-0015` | alertas en vivo: `WS /ws/alertas?token=`, feed, contador y refresco del mapa con debounce | 29 |
+  | 4 | `FEAT-0016` | administración (CRUD ADMIN, errores por `code`) y panel de demo del simulador (Fase B) | 31 |
+
+  Orden recomendado: `FEAT-0009` primero (es la base de las otras tres); 2 y 3 son independientes
+  entre sí. No hay backlog de fixes pendiente (`FIX-0001..FIX-0007` RESOLVED, 7/7).
 - **Contracts de fix pendientes: ninguno** (`FIX-0001..FIX-0007` RESOLVED, 7/7).
 - **Documentos de backlog promovidos**: `docs/FIX-0002-schema-versionado-lecturas.md` → `FIX-0006`,
   `docs/FIX-0003..0004` → `FIX-0003`/`FIX-0004`, `docs/FIX-0006-particionamiento-consumers.md` →
   `FIX-0005`, `docs/FIX-0005-gateway-rate-limiting.md` → `FEAT-0007`, `docs/FIX-0007-circuit-breaker.md`
   → `FIX-0007` (ver mapeo en `docs/ESTADO-PROYECTO.md` §3d).
+- **Fuera de alcance de la serie del frontend (registrado, sin contract)**: Fase C = agregados
+  (continuous aggregates §9.2), export CSV, comparación de sensores e historial de alertas
+  consultable (requiere backend: `alerting-service` no expone REST); gestión de usuarios/roles;
+  severidad por lectura en el payload del WS de `query-api` (sería un `FIX` propio); i18n
+  multi-idioma y PWA/offline.
 - **Follow-ups técnicos abiertos (sin contract todavía)**:
   1. Persistir `ultimaSeveridad` de `ingestion-service` (hoy en memoria por instancia).
   2. Afinidad de `alerting-service` si se escala (histéresis en memoria) — ADR-0015.
@@ -136,9 +161,9 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
   6. Caché del resumen (`GET /api/sensores/resumen`) en Redis — fuera de alcance de FEAT-0008.
   7. Autenticación de los REST **en el gateway** (hoy valida sólo el upgrade WS) — FEAT-0008 acota
      esa brecha a los WS.
-- **Roadmap v1 restante**: **frontend React** (`FEAT-0009` y siguientes: Fase A mapa+dashboards,
-  Fase B CRUD/simulador, Fase C agregados + historial de alertas), Redis para `/actual`,
-  continuous aggregates de TimescaleDB (§9.2) y manifiestos K8s (documentación).
+- **Roadmap v1 restante**: la **serie del frontend** (`FEAT-0009` → `FEAT-0014` → `FEAT-0015` →
+  `FEAT-0016`, hoy en Gate), después Fase C (agregados + historial de alertas), Redis para `/actual`
+  y caché del resumen, y manifiestos K8s (documentación).
 
 ### Notas de entorno (relevantes para reproducir)
 

@@ -7,10 +7,30 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [No publicado] — serie del frontend (`FEAT-0009`, `FEAT-0014`, `FEAT-0015`, `FEAT-0016`) · en Gate
+
+Los habilitadores del backend (`FEAT-0008`) están cerrados, así que el SPA ya se puede especificar
+sin tocar ningún servicio. El alcance se dividió en **4 contracts por capacidad funcional**
+(división aprobada por el humano 2026-09-14), todos en **DRAFT/GATE** esperando el HO-Gate:
+
+| Parte | Contract | Alcance | Criterios | Gate |
+|---|---|---|---|---|
+| 1 | `FEAT-0009` | SPA núcleo: sesión (`sessionStorage`), shell/rutas, cliente API (errores por `code`, `429`/`Retry-After`), **mapa Leaflet** con `GET /api/sensores/resumen` y **hosting del SPA desde el gateway** | 32 | STRICT |
+| 2 | `FEAT-0014` | detalle en vivo: `WS /ws/sensores/{id}?token=` (backoff + estados) y serie de 24 h con histórico keyset | 29 | EXPRESS |
+| 3 | `FEAT-0015` | alertas en vivo: `WS /ws/alertas?token=`, feed con dedupe, contador de críticas y refresco del mapa con debounce | 29 | EXPRESS |
+| 4 | `FEAT-0016` | administración y demo (Fase B): CRUD de sensores (ADMIN) con errores de dominio por `code` y panel del simulador configurable | 31 | STRICT |
+
+Stack propuesto para el SPA (decisiones del Gate marcadas "sujeto a HO-Gate"): **Vite + React +
+TypeScript** en `web/`, **Vitest + RTL + MSW** (+ Playwright para e2e), CSS Modules con tokens
+propios, react-router + hooks sobre `fetch`, gráfico de la serie en SVG propio, build por npm copiado
+al gateway en un stage de Node de la imagen Docker (el `mvn -o` del backend queda intacto).
+Nada de esto cambia el contrato de los servicios; si aparece una necesidad de backend (p. ej.
+severidad en el payload del WS de lecturas) se abre un `FIX` propio.
+
 ## [FEAT-0008] — 2026-09-14 — Habilitadores del frontend: CORS, WS autenticado y resumen de sensores
 
 `contracts/FEAT-0008.md` (31/31 ✅, único contract con `Gate-Mode: STRICT`) · ADR-0019 ·
-suites `api-gateway` 67 unit + 29 IT · `query-api` 33 unit + 8 IT.
+suites `api-gateway` 68 unit + 29 IT · `query-api` 33 unit + 8 IT.
 
 **Agregado — `api-gateway`:**
 
