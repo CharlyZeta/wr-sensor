@@ -78,6 +78,26 @@ public class GatewayConfig {
     }
 
     /**
+     * Verificador HS256 del handshake WS (FEAT-0008 BR-003). Fail-fast: sin secreto configurado el
+     * gateway no arranca en vez de aceptar upgrades sin poder validarlos.
+     */
+    @Bean
+    com.wrsensor.gateway.domain.VerificadorJwt verificadorJwt(GatewayProperties props) {
+        String secreto = props.ws() == null ? null : props.ws().jwtSecreto();
+        return new com.wrsensor.gateway.domain.VerificadorJwt(secreto);
+    }
+
+    /** Autorizador del handshake (roles permitidos + nombre del query param del token). */
+    @Bean
+    com.wrsensor.gateway.infrastructure.adapter.in.web.AutenticadorWs autenticadorWs(
+            GatewayProperties props, com.wrsensor.gateway.domain.VerificadorJwt verificadorJwt) {
+        GatewayProperties.WsCfg cfg = props.ws() == null
+                ? new GatewayProperties.WsCfg(null, null, null) : props.ws();
+        return new com.wrsensor.gateway.infrastructure.adapter.in.web.AutenticadorWs(cfg,
+                verificadorJwt);
+    }
+
+    /**
      * WebClient del proxy: sin buffer de request (streaming), sin codecs de error que
      * intercepten el status downstream (se devuelve el status tal cual, BR-009).
      */

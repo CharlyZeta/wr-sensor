@@ -39,13 +39,14 @@ host. `sensor-registry`, `query-api`, `alerting-service`, `data-simulator` e
 habilita con `docker-compose.dev.yml` (ver RUNBOOK §4). Los puertos de infraestructura
 (RabbitMQ, Postgres, Timescale, Redis) siguen publicados por ser herramientas de desarrollo.
 
-### Rutas del gateway (FEAT-0007)
+### Rutas del gateway (FEAT-0007 + FEAT-0008)
 
 | Ruta | Patrón | Destino | Clase de límite |
 |---|---|---|---|
 | `registry-login` | `POST /api/auth/login` | `sensor-registry:8080` | `login` (10/60 s) |
 | `registry-auth` | `POST /api/auth/**` | `sensor-registry:8080` | `default` |
-| `registry-sensores-lectura` | `GET /api/sensores/**` | `sensor-registry:8080` | `lectura` (120/60 s) |
+| `query-resumen` | `GET /api/sensores/resumen` | `query-api:8082` | `lectura` (120/60 s) |
+| `registry-sensores-lectura` | `GET /api/sensores/**` | `sensor-registry:8080` | `lectura` |
 | `registry-sensores-escritura` | `POST/PUT/DELETE /api/sensores/**` | `sensor-registry:8080` | `default` (300/60 s) |
 | `query-lecturas` | `GET /api/sensores/*/lecturas` | `query-api:8082` | `lectura` |
 | `query-actual` | `GET /api/sensores/*/actual` | `query-api:8082` | `lectura` |
@@ -53,9 +54,49 @@ habilita con `docker-compose.dev.yml` (ver RUNBOOK §4). Los puertos de infraest
 | `ws-sensores` | `/ws/sensores/**` (upgrade) | `query-api:8082` | `ws` |
 
 Gana siempre el **patrón más específico** (`PathPattern.SPECIFICITY_COMPARATOR`), que es lo
-que permite que `/api/sensores/{id}/lecturas` vaya a `query-api` mientras el resto de
-`/api/sensores/**` va al registry. Cualquier path no declarado responde
-`404 ROUTE_NOT_FOUND` sin fallback.
+que permite que `/api/sensores/{id}/lecturas` y `/api/sensores/resumen` vayan a `query-api`
+mientras el resto de `/api/sensores/**` va al registry. Cualquier path no declarado responde
+`404 ROUTE_NOT_FOUND` sin fallback (el **simulador** sigue fuera del gateway: la demo usa
+`docker-compose.dev.yml`).
+
+### Cadena de filtros del gateway (FEAT-0008)
+
+```
+request ─▶ FiltroCors (HIGHEST_PRECEDENCE)
+             │  · sin Origin, o Origin propio ⇒ pasa sin headers (no es CORS)
+             │  · preflight de origen permitido ⇒ 204 + headers, FIN (sin cupo, sin downstream)
+             │  · origen cruzado no permitido ⇒ 403 ORIGIN_NOT_ALLOWED sin headers Access-Control-*
+             ▼
+           FiltroCorrelacion (+10)  → X-Correlation-Id + log de acceso (path, nunca el query)
+             ▼
+           FiltroRateLimit (+20)    → token bucket por clase|IP ⇒ 429 + Retry-After
+             ▼
+           RouterFunction           → ManejadorRuta (REST) | ManejadorWs (túnel WS) | 404
+```
+
+### Autenticación del handshake WebSocket (FEAT-0008)
+
+Los WS viven en `alerting-service` y `query-api`, que no tienen auth propia; el navegador, además,
+**no puede** mandar `Authorization` en el upgrade. Por eso el gateway valida el JWT HS256
+(secreto compartido `AUTH_JWT_SECRET`, firma + `exp`, comparación constant-time) **antes** de
+completar el handshake y antes de contactar al downstream:
+
+```
+SPA ──GET /ws/alertas?token=<jwt>──▶ gateway
+                                     │ 1. AutenticadorWs: token del query o de Authorization: Bearer
+                                     │ 2. VerificadorJwt: firma + exp + rol ∈ {ADMIN, VIEWER}
+                                     │    ✗ ⇒ 401 UNAUTHENTICATED / 403 INSUFFICIENT_ROLE (sin sesión)
+                                     │ 3. quita ?token= de la URL del downstream (no se propaga)
+                                     ▼
+                          clienteWs.execute("ws://alerting-service:8083/ws/alertas") ─▶ downstream
+                                     │ 4. recién entonces HandshakeWebSocketService completa el upgrade
+                                     ▼
+                                  sesión puente en ambos sentidos
+```
+
+Consecuencias: un WS sin token nunca abre sesión ni llega al downstream (el downstream no
+registra conexiones), el token no aparece en los logs de acceso, y el rechazo es un `401` HTTP
+(nunca un cierre de sesión ya aceptada). Ver `DECISIONES.md` ADR-0019.
 
 
 ## 2. Contratos de mensajería (RabbitMQ)
@@ -172,6 +213,18 @@ compresión día 8 + continuous aggregates = política TimescaleDB futura (spec 
 - **alerting-service** (FEAT-0012): histéresis por **debounce temporal** (subida
   inmediata; bajada confirmada tras ventana `alerting.histeresis-segundos`;
   re-subida cancela); broadcast reactivo `Sinks` → WS `/ws/alertas`.
+- **api-gateway** (FEAT-0007 + FEAT-0008): proxy declarativo (tabla de rutas en
+  `application.yml`, patrón más específico primero) con rate limiting por clase|IP,
+  correlación, higiene de headers hop-by-hop y túnel WS; **CORS configurable** resuelto
+  en un `WebFilter` de máxima precedencia que responde el preflight él mismo (204, sin
+  cupo, sin downstream) y **autenticación del handshake WS** con un verificador HS256
+  propio (JDK crypto, sin dependencias nuevas) que valida firma + `exp` + rol antes de
+  abrir sesión y sin propagar el token.
+- **query-api — resumen del mapa** (FEAT-0008): `GET /api/sensores/resumen` compone
+  metadata del registry (REST paginado keyset, timeout explícito, credenciales VIEWER)
+  con la última lectura de **todos** los sensores en una sola consulta
+  (`DISTINCT ON (sensor_id) … ORDER BY sensor_id, ts DESC`); el registry caído devuelve
+  `502 REGISTRY_UNAVAILABLE` sin datos parciales.
 
 ## 5. Códigos de error (convención)
 
@@ -180,12 +233,22 @@ Toda respuesta de error: `{"code":"...","message":"..."}`. Familia
 `UNAUTHENTICATED`, `INSUFFICIENT_ROLE`, `INVALID_CREDENTIALS`.
 `data-simulator`: `SIMULATOR_ALREADY_RUNNING`, `SIMULATOR_NOT_RUNNING`,
 `SENSOR_NOT_FOUND`. Rechazos de consumo (DLQ): `PAYLOAD_INVALID`, `SENSOR_UNKNOWN`,
-`SENSOR_INACTIVE`, `TIMESTAMP_OUT_OF_WINDOW`, `INFRA_ERROR`.
+`SENSOR_INACTIVE`, `TIMESTAMP_OUT_OF_WINDOW`, `INFRA_ERROR` (más
+`SCHEMA_UNSUPPORTED` y `REGISTRY_UNAVAILABLE` de FIX-0006/FIX-0007).
+`api-gateway`: `ROUTE_NOT_FOUND`, `RATE_LIMIT_EXCEEDED`, `UPSTREAM_UNAVAILABLE`,
+`UPSTREAM_TIMEOUT`, `WS_UPGRADE_REQUIRED`, `INTERNAL_ERROR` y, desde FEAT-0008,
+`UNAUTHENTICATED`, `INSUFFICIENT_ROLE`, `ORIGIN_NOT_ALLOWED`.
+`query-api`: `SENSOR_INVALID_*`, `INVALID_RANGE`, `SENSOR_NOT_FOUND`, `UNAUTHENTICATED`,
+`INSUFFICIENT_ROLE` y `REGISTRY_UNAVAILABLE` (FEAT-0008, `502`).
 
 ## 6. Frontend / infra futura
 
-- Frontend React + Leaflet/MapLibre + dashboards (sin iniciar).
-- `docker-compose.yml` con los 4+2 servicios, Postgres+TimescaleDB, Redis, RabbitMQ
-  (sin iniciar; pendiente infra).
-- Redis para "última lectura" de query-api (FEAT-0013; pendiente).
+- **Frontend React + Leaflet** (`FEAT-0009`, siguiente): Fase A = login + mapa con el
+  resumen (`GET /api/sensores/resumen`) + detalle en vivo por WS + feed de alertas +
+  serie de 24 h. El SPA lo sirve el **gateway** (mismo origen; decisión de FEAT-0008
+  BR-009/ADR-0019), con lo que la lista de CORS puede quedar vacía en producción.
+- `docker-compose.yml` con los 4+2 servicios, Postgres+TimescaleDB, Redis, RabbitMQ.
+- Redis para "última lectura" de query-api (FEAT-0013; pendiente) y caché del resumen
+  (fuera de alcance de FEAT-0008).
+- Manifiestos K8s (sólo documentación hasta que haya infra destino).
 

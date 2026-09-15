@@ -9,7 +9,7 @@
 📊 SDD-GL Status
 
 🔴 DRAFT (Gate — awaiting review)
-   └── FEAT-0008: habilitadores del frontend (CORS, auth de WebSocket, resumen de sensores) [0/31]
+   └── (ninguno)
 
 🟡 APPROVED (Loop in progress)
    └── (ninguno)
@@ -22,6 +22,7 @@
    └── FEAT-0005: Baja lógica de sensor — DELETE /api/sensores/{id} [22/22 ✅]
    └── FEAT-0006: Autenticación con JWT — POST /api/auth/login [21/21 ✅]
    └── FEAT-0007: api-gateway — punto de entrada único, rate limiting y correlación [33/33 ✅]
+   └── FEAT-0008: habilitadores del frontend (CORS, auth de WebSocket, resumen de sensores) [31/31 ✅]
    └── FEAT-0010: data-simulator — generador de lecturas sintéticas [23/23 ✅]
    └── FEAT-0011: ingestion-service — consumo y severidad de lecturas [22/22 ✅]
    └── FEAT-0012: alerting-service — histéresis y notificación de alertas [22/22 ✅]
@@ -34,10 +35,15 @@
    └── FIX-0006: versionado del schema de sensor.lecturas (payload v1) [31/31 ✅]
    └── FIX-0007: resiliencia del lookup de config (timeouts, breaker, cache TTL) [30/30 ✅]
 
-Total: 19 contracts | 1 in Gate | 0 in Loop | 18 resolved
-Criterios de completitud: 377/377 ✅ en los 18 resueltos (253 en FEATs + 124 en FIXes)
-                        + 31 criterios pendientes en FEAT-0008 (Gate, esperando HO-Gate)
+Total: 19 contracts | 0 in Gate | 0 in Loop | 19 resolved
+Criterios de completitud: 408/408 ✅ (253 en FEATs + 124 en FIXes + 31 de FEAT-0008)
+                         pendientes: ninguno
 ```
+
+> **HO-Gate pendiente (humano):** FEAT-0008 tiene el Loop completo y el mapa en 31/31, pero la
+> validación final del work item es del humano (protocolo SDD-GL). El hallazgo del Loop que amerita
+> su revisión está en ADR-0019 (el primer CORS rechazaba el mismo origen y rompía login + WS del SPA
+> servido por el gateway) y en `docs/REGISTRO-SDD.md` §Fixes ítem 11.
 
 ## Detalle por contract
 
@@ -61,6 +67,7 @@ Criterios de completitud: 377/377 ✅ en los 18 resueltos (253 en FEATs + 124 en
 | FIX-0005 | `ingestion-service` — particionamiento por `sensorId` | 23/23 ✅ | ADR-0015 · `.sdd/runs/FIX-0005-20260911-201500.md` |
 | FIX-0006 | `data-simulator` + `ingestion-service` + `query-api` — payload v1 | 31/31 ✅ | ADR-0017 · `.sdd/runs/FIX-0006-20260913-150000.md` |
 | FIX-0007 | `ingestion-service` — resiliencia del lookup de config | 30/30 ✅ | ADR-0018 · `.sdd/runs/FIX-0007-20260913-153000.md` |
+| FEAT-0008 | `api-gateway` (CORS + auth WS + ruteo) y `query-api` (resumen del mapa) | 31/31 ✅ | ADR-0019 · `.sdd/runs/FEAT-0008-*.md` |
 
 > Los conteos exactos de tests son **por módulo** (tabla siguiente): un mismo archivo de test puede
 > cubrir criterios de más de un contract, así que atribuir tests a un contract individual sería
@@ -75,9 +82,9 @@ Criterios de completitud: 377/377 ✅ en los 18 resueltos (253 en FEATs + 124 en
 | `data-simulator` | 19 | 1 | 20 |
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
-| `query-api` | 11 | 1 | 12 |
-| `api-gateway` | 31 | 16 | 47 |
-| **Total** | **248** | **87** | **335** |
+| `query-api` | 33 | 8 | 41 |
+| `api-gateway` | 67 | 29 | 96 |
+| **Total** | **306** | **107** | **413** |
 
 Cómo reproducirlo:
 
@@ -106,27 +113,29 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
 - **Cada Loop** dejó una auditoría Glass Box en `.sdd/runs/<ID>-<timestamp>.md` con los archivos
   leídos, el diff, el comando de test, la salida del runner y la justificación técnica (incluidos
   los bugs reales encontrados durante la implementación).
-- **Decisiones de arquitectura**: `docs/DECISIONES.md` (ADR-0001..ADR-0018).
+- **Decisiones de arquitectura**: `docs/DECISIONES.md` (ADR-0001..ADR-0019).
 - **Especificación de origen**: `docs/water-monitoring-spec.md` y `stack.md`.
 - **Proceso**: `CLAUDE.md` / `AGENTS.md` (orquestador SDD-GL), `protocol/{contract,gate,loop}.md`.
 
 ### Estado del backlog
 
-- **En curso (Gate)**: `FEAT-0008` — habilitadores del frontend (CORS, autenticación de WebSocket,
-  `GET /api/sensores/resumen`), 31 criterios, esperando HO-Gate. Alcance y decisiones aprobadas en
-  `contracts/FEAT-0008.md`.
+- **En curso (Gate)**: ninguno. `FEAT-0008` cerró su Loop (31/31) y espera la validación humana del
+  resultado; `FEAT-0009` (SPA React Fase A) es el siguiente work item a abrir con `/sdd-feature`.
 - **Contracts de fix pendientes: ninguno** (`FIX-0001..FIX-0007` RESOLVED, 7/7).
 - **Documentos de backlog promovidos**: `docs/FIX-0002-schema-versionado-lecturas.md` → `FIX-0006`,
   `docs/FIX-0003..0004` → `FIX-0003`/`FIX-0004`, `docs/FIX-0006-particionamiento-consumers.md` →
-  `FIX-0005`, `docs/FIX-0005-gateway-rate-limiting.md` → `FEAT-0007` (ver mapeo en
-  `docs/ESTADO-PROYECTO.md` §3d).
+  `FIX-0005`, `docs/FIX-0005-gateway-rate-limiting.md` → `FEAT-0007`, `docs/FIX-0007-circuit-breaker.md`
+  → `FIX-0007` (ver mapeo en `docs/ESTADO-PROYECTO.md` §3d).
 - **Follow-ups técnicos abiertos (sin contract todavía)**:
   1. Persistir `ultimaSeveridad` de `ingestion-service` (hoy en memoria por instancia).
   2. Afinidad de `alerting-service` si se escala (histéresis en memoria) — ADR-0015.
   3. Reintentos con backoff en el consumo (la config `messaging.retry-max-attempts` está **sin uso**)
      — ADR-0018.
-  4. Historial de alertas consultable (hoy sólo el WS en vivo).
+  4. Historial de alertas consultable (hoy sólo el WS en vivo) — FEAT-0008 lo deja fuera de alcance.
   5. Decisión de tiles del mapa (OSM remoto vs mapa esquemático offline) — se resuelve en `FEAT-0009`.
+  6. Caché del resumen (`GET /api/sensores/resumen`) en Redis — fuera de alcance de FEAT-0008.
+  7. Autenticación de los REST **en el gateway** (hoy valida sólo el upgrade WS) — FEAT-0008 acota
+     esa brecha a los WS.
 - **Roadmap v1 restante**: **frontend React** (`FEAT-0009` y siguientes: Fase A mapa+dashboards,
   Fase B CRUD/simulador, Fase C agregados + historial de alertas), Redis para `/actual`,
   continuous aggregates de TimescaleDB (§9.2) y manifiestos K8s (documentación).
@@ -137,4 +146,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
 - JDK 25 bloquea el auto-attach del agente de Mockito: el proyecto usa el **subclass mock maker**
   (`services/ingestion-service/src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker`).
 - Los tests corren **offline** (`mvn -o`): todas las dependencias están en el `~/.m2` local. No se
-  agregaron dependencias nuevas en FEAT-0007, FIX-0006 ni FIX-0007.
+  agregaron dependencias nuevas en FEAT-0007, FEAT-0008, FIX-0006 ni FIX-0007.
+- Los ITs de `api-gateway` **no requieren Docker**: levantan downstreams stub en proceso (servidor
+  HTTP del JDK + Reactor Netty para el WS) y cuentan exactamente qué recibe cada uno. El IT de
+  `query-api` sí usa Testcontainers (Postgres real para el `DISTINCT ON`).

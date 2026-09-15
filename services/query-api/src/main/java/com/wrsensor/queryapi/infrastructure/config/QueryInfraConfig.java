@@ -12,6 +12,7 @@ import reactor.rabbitmq.SenderOptions;
 
 /** Wiring reactivo de query-api. */
 @Configuration
+@org.springframework.boot.context.properties.EnableConfigurationProperties(RegistryProperties.class)
 public class QueryInfraConfig {
 
     private static ConnectionFactory cf(String host, int port, String user, String password) {
@@ -43,5 +44,30 @@ public class QueryInfraConfig {
     com.wrsensor.queryapi.application.service.QueryService queryService(
             com.wrsensor.queryapi.application.port.LecturasPort lecturasPort) {
         return new com.wrsensor.queryapi.application.service.QueryService(lecturasPort);
+    }
+
+    /** Reloj del servicio: cache de token del registry (inyectable en tests). */
+    @Bean
+    java.time.Clock reloj() {
+        return java.time.Clock.systemUTC();
+    }
+
+    /**
+     * Cliente REST de metadata del registry (FEAT-0008 BR-007), con su propio {@code JsonMapper}
+     * (misma configuración que el consumidor de Rabbit de este servicio).
+     */
+    @Bean
+    com.wrsensor.queryapi.application.port.SensoresMetadataPort sensoresMetadataPort(
+            RegistryProperties props, java.time.Clock reloj) {
+        return new com.wrsensor.queryapi.infrastructure.adapter.out.registry.RegistrySensoresAdapter(
+                props, reloj);
+    }
+
+    /** Caso de uso del resumen del mapa (FEAT-0008 BR-005/BR-006). */
+    @Bean
+    com.wrsensor.queryapi.application.service.ResumenService resumenService(
+            com.wrsensor.queryapi.application.port.SensoresMetadataPort metadata,
+            com.wrsensor.queryapi.application.port.UltimasLecturasPort ultimas) {
+        return new com.wrsensor.queryapi.application.service.ResumenService(metadata, ultimas);
     }
 }

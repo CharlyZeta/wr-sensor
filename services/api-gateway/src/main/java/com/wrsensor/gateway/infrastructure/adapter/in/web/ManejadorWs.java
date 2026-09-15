@@ -23,8 +23,10 @@ import java.net.URI;
  * responde {@code 502 UPSTREAM_UNAVAILABLE} (y no un handshake aceptado que muere después).
  * Luego retransmite frames de texto en ambos sentidos, propagando el cierre en los dos lados.
  *
- * <p>No agrega autenticación: los WS de {@code alerting-service}/{@code query-api} no la tienen
- * hoy (brecha conocida, fuera de alcance; ver ADR-0016).</p>
+ * <p>El upgrade se **autentica antes** de tocar el downstream (FEAT-0008 BR-003): el token llega
+ * por {@code ?token=} o por {@code Authorization: Bearer} y, si no verifica, se responde
+ * {@code 401}/{@code 403} sin abrir sesión. El token consumido no se reenvía ni se loguea
+ * (BR-004): se quita del query antes de armar la URL del downstream.</p>
  */
 public class ManejadorWs implements HandlerFunction<ServerResponse> {
 
@@ -33,12 +35,14 @@ public class ManejadorWs implements HandlerFunction<ServerResponse> {
     private final TablaRutas.Ruta ruta;
     private final ReactorNettyWebSocketClient clienteWs;
     private final HandshakeWebSocketService handshake;
+    private final AutenticadorWs autenticador;
 
     public ManejadorWs(TablaRutas.Ruta ruta, ReactorNettyWebSocketClient clienteWs,
-                       HandshakeWebSocketService handshake) {
+                       HandshakeWebSocketService handshake, AutenticadorWs autenticador) {
         this.ruta = ruta;
         this.clienteWs = clienteWs;
         this.handshake = handshake;
+        this.autenticador = autenticador;
     }
 
     @Override
@@ -48,6 +52,14 @@ public class ManejadorWs implements HandlerFunction<ServerResponse> {
             return RespuestasGateway.error(exchange, HttpStatus.UPGRADE_REQUIRED,
                     CodigosError.WS_UPGRADE_REQUIRED,
                     "la ruta " + ruta.patronTexto() + " requiere un upgrade a WebSocket");
+        }
+        // BR-003: sin token válido no hay handshake ni conexión al downstream.
+        AutenticadorWs.Rechazo rechazo = autenticador.autorizar(exchange).orElse(null);
+        if (rechazo != null) {
+            log.info("[gateway] WS {} rechazado ({}): {}", ruta.id(), rechazo.codigo(),
+                    rechazo.mensaje());
+            return RespuestasGateway.error(exchange, rechazo.status(), rechazo.codigo(),
+                    rechazo.mensaje());
         }
         URI destino = destino(exchange);
         return clienteWs.execute(destino, remota -> puentear(exchange, remota))
@@ -99,7 +111,8 @@ public class ManejadorWs implements HandlerFunction<ServerResponse> {
         String base = ruta.destino().endsWith("/")
                 ? ruta.destino().substring(0, ruta.destino().length() - 1) : ruta.destino();
         String path = exchange.getRequest().getPath().value();
-        String query = exchange.getRequest().getURI().getRawQuery();
+        // BR-004: el token se consume para autorizar y no se propaga al downstream.
+        String query = autenticador.querySinToken(exchange.getRequest().getURI().getRawQuery());
         String ws = base.startsWith("https://") ? "wss://" + base.substring(8)
                 : base.startsWith("http://") ? "ws://" + base.substring(7) : base;
         return URI.create(ws + path + (query == null || query.isEmpty() ? "" : "?" + query));

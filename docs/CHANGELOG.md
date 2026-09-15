@@ -7,13 +7,64 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
-## [No publicado] — `FEAT-0008` (en Gate)
+## [FEAT-0008] — 2026-09-14 — Habilitadores del frontend: CORS, WS autenticado y resumen de sensores
 
-Habilitadores del frontend, con decisiones ya aprobadas: **CORS configurable** en el gateway,
-**autenticación del handshake WebSocket** (token validado en el gateway, sin abrir sesión sin
-token) y **`GET /api/sensores/resumen`** en `query-api` (todos los sensores con metadata + última
-lectura en una sola consulta, para no hacer N+1 desde el mapa). Fuera de alcance: el SPA React
-(`FEAT-0009`), la ruta del simulador y el historial de alertas. Ver `contracts/FEAT-0008.md`.
+`contracts/FEAT-0008.md` (31/31 ✅, único contract con `Gate-Mode: STRICT`) · ADR-0019 ·
+suites `api-gateway` 67 unit + 29 IT · `query-api` 33 unit + 8 IT.
+
+**Agregado — `api-gateway`:**
+
+- **CORS configurable** (`gateway.cors.*`, lista de orígenes **vacía por default** = same-origin
+  only, `allow-credentials: false`). El **preflight lo responde el gateway él mismo**: `204` con
+  `Access-Control-Allow-Origin/Methods/Headers/Max-Age`, **sin consumir cupo de rate limit** (el
+  filtro corre antes) y **sin llegar al downstream**. Se exponen `X-Correlation-Id`,
+  `X-RateLimit-Limit/Remaining` y `Retry-After` para que el SPA pueda mostrar correlación y cupo.
+- **`403 ORIGIN_NOT_ALLOWED` sin headers `Access-Control-*`** para orígenes cruzados ajenos.
+- **Autenticación del handshake WebSocket** (`?token=<jwt>` o `Authorization: Bearer`): verificador
+  HS256 propio (`VerificadorJwt`, JDK crypto, sin dependencias nuevas) que valida **firma + `exp` +
+  rol** antes de completar el upgrade; sin token válido → `401 UNAUTHENTICATED` (rol no autorizado →
+  `403 INSUFFICIENT_ROLE`) **sin abrir sesión y sin contactar al downstream**. El token **no se
+  propaga** (se quita del query antes de reenviar) **ni se loguea** (el log de acceso registra sólo
+  el path).
+- Ruta declarada **`query-resumen`**: `GET /api/sensores/resumen` → `query-api` con clase de límite
+  `lectura`, ganando por patrón más específico sobre `/api/sensores/**`.
+
+**Agregado — `query-api`:**
+
+- **`GET /api/sensores/resumen`** (roles `{ADMIN, VIEWER}`): array con **todos** los sensores
+  (`id, codigo, nombre, tipo, latitud, longitud, estado, unidadMedida`) y su
+  `ultimaLectura {valor, timestamp, severidad, calidad}`; los sensores sin lecturas aparecen con
+  `ultimaLectura: null` (nunca se omiten). Fuente única del mapa y del listado del SPA.
+- **Una sola consulta** a la hypertable para las últimas lecturas de todos los sensores
+  (`DISTINCT ON (sensor_id) … ORDER BY sensor_id, ts DESC`, port propio `UltimasLecturasPort`) —
+  nunca N+1, verificado con un port fake que cuenta invocaciones.
+- **Cliente REST al `sensor-registry`** con paginación keyset hasta agotar, tope de seguridad
+  configurable, **timeouts explícitos** de conexión/respuesta, token cacheado con vencimiento y
+  **relogin único ante `401`**. Si el registry no responde o responde con error → **`502
+  REGISTRY_UNAVAILABLE` sin datos parciales** (nunca un mapa a medias que parezca completo).
+
+**Corregido (bug real encontrado por el Loop, no estaba en el backlog):**
+
+- La primera versión del filtro CORS **rechazaba con `403` todo request con `Origin` no listado**,
+  incluidos los del **propio origen**. El navegador manda `Origin` en los POST y en el **handshake
+  WebSocket**, así que con la lista vacía (default de producción, SPA servido por el gateway) el SPA
+  no habría podido **ni loguearse ni abrir un WS**. Lo destapó el IT del túnel WS de FEAT-0007 (verde
+  antes del cambio, rojo después). Corrección: **same-origin no es CORS** — si el `Origin` coincide
+  con el host del gateway (vía `Host`, o `X-Forwarded-Host`/`-Proto` detrás de un terminador TLS) el
+  request pasa sin headers y sin bloqueo.
+
+**Notas de compatibilidad:**
+
+- El túnel WS de FEAT-0007 ahora exige token: su IT manda un JWT válido (AC-006 lo contempla como
+  "regresión del túnel, ahora autenticado"). Cualquier cliente WS existente debe empezar a mandar
+  `?token=` o `Authorization: Bearer`.
+- `query-api` gana una dependencia de runtime con `sensor-registry` para el resumen (credenciales
+  VIEWER configurables y modo de fallo `502` explícito). Los endpoints existentes no cambian.
+
+**Fuera de alcance (declarado):** el SPA React en sí (`FEAT-0009`, incluido su hosting estático
+desde el gateway), ruta del simulador por el gateway (sigue interno), historial de alertas, caché del
+resumen en Redis, continuous aggregates, autenticación de los REST en el gateway, refresh token y
+CORS con cookies.
 
 ## [FIX-0007] — 2026-09-14 — Resiliencia del lookup de config de sensores
 

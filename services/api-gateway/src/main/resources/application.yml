@@ -22,6 +22,14 @@ gateway:
       destino: ${REGISTRY_URL:http://sensor-registry:8080}
       clase-limite: default
       timeout-ms: 10000
+    # FEAT-0008 BR-008: el resumen del mapa es de query-api (dueno de las lecturas) y gana por
+    # patron mas especifico sobre /api/sensores/** (registry).
+    - id: query-resumen
+      patron: /api/sensores/resumen
+      metodos: [GET]
+      destino: ${QUERY_API_URL:http://query-api:8082}
+      clase-limite: lectura
+      timeout-ms: 10000
     - id: registry-sensores-lectura
       patron: /api/sensores/**
       metodos: [GET]
@@ -66,6 +74,26 @@ gateway:
       login:   { peticiones: 10,  ventana-segundos: 60, burst: 10 }
       lectura: { peticiones: 120, ventana-segundos: 60, burst: 60 }
       ws:      { peticiones: 30,  ventana-segundos: 60, burst: 30 }
+
+  # FEAT-0008 BR-001/BR-002: CORS configurable. Lista VACIA = same-origin only (default seguro en
+  # produccion, donde el SPA lo sirve el propio gateway). Para el SPA en dev:
+  # GATEWAY_CORS_ORIGENES=http://localhost:5173. El preflight lo responde el gateway (204) sin
+  # consumir cupo de rate limit ni llegar al downstream.
+  cors:
+    origenes: ${GATEWAY_CORS_ORIGENES:}
+    metodos: [GET, POST, PUT, DELETE, OPTIONS]
+    headers: [Authorization, Content-Type, X-Correlation-Id]
+    headers-expuestos: [X-Correlation-Id, X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After]
+    max-age-segundos: ${GATEWAY_CORS_MAX_AGE:3600}
+    permitir-credenciales: false
+
+  # FEAT-0008 BR-003/BR-004: autenticacion del handshake WebSocket (firma HS256 + exp) con el
+  # secreto compartido con sensor-registry. El token se acepta por ?token= o Authorization: Bearer
+  # y no se propaga ni se loguea.
+  ws:
+    roles-permitidos: [ADMIN, VIEWER]
+    parametro-token: token
+    jwt-secreto: ${AUTH_JWT_SECRET:wrsensor-dev-secret-2026-no-usar-en-prod}
 
 logging:
   level:

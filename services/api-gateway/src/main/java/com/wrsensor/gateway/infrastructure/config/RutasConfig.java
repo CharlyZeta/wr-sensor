@@ -35,7 +35,8 @@ import java.util.List;
 public class RutasConfig {
 
     @Bean
-    RouterFunction<ServerResponse> rutasGateway(TablaRutas tabla, GatewayProperties props) {
+    RouterFunction<ServerResponse> rutasGateway(TablaRutas tabla, GatewayProperties props,
+                                               com.wrsensor.gateway.infrastructure.adapter.in.web.AutenticadorWs autenticadorWs) {
         boolean confiar = props.rateLimit() != null && props.rateLimit().confiarForwardedForOrDefault();
         RouterFunctions.Builder builder = RouterFunctions.route();
 
@@ -50,7 +51,8 @@ public class RutasConfig {
         for (TablaRutas.Ruta ruta : ordenadas) {
             if (esWs(ruta)) {
                 ManejadorWs manejador = new ManejadorWs(ruta, clienteWs(ruta),
-                        new HandshakeWebSocketService(new ReactorNettyRequestUpgradeStrategy()));
+                        new HandshakeWebSocketService(new ReactorNettyRequestUpgradeStrategy()),
+                        autenticadorWs);
                 builder = builder.route(path(ruta), manejador);
             } else {
                 ManejadorRuta manejador = new ManejadorRuta(ruta, clienteRest(ruta), confiar);

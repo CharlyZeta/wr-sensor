@@ -60,7 +60,8 @@ sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico key
 
 Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
 paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
-`application.yml`, tests trazables a los contracts (BR/AC/AF) — **335 verdes**.
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **413 verdes**.
+Punto de entrada único con **CORS configurable y WebSocket autenticado** (`FEAT-0008`).
 Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 
 ## 3. Documentación (índice)
@@ -104,10 +105,11 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FEAT-0007` | `api-gateway`: entrada única + rate limiting | ✅ RESOLVED | 31 · IT 16 |
 | `FIX-0006` | Versionado del schema de `sensor.lecturas` (v1) | ✅ RESOLVED | 27 · IT 7 |
 | `FIX-0007` | Resiliencia del lookup de config (breaker + cache TTL) | ✅ RESOLVED | 20 · IT 5 |
+| `FEAT-0008` | Habilitadores del frontend: CORS, WS autenticado y resumen | ✅ RESOLVED | 58 · IT 20 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 20 · `ingestion-service` 121 ·
-`alerting-service` 12 · `query-api` 12 · `api-gateway` 47 → **335 tests** (JUnit 5; ITs con
-Testcontainers; detalle por módulo en `docs/RUNBOOK.md` §2).
+`alerting-service` 12 · `query-api` 41 · `api-gateway` 96 → **413 tests** (JUnit 5; ITs con
+Testcontainers — los del gateway usan downstreams stub; detalle por módulo en `docs/RUNBOOK.md` §2).
 
 ---
 

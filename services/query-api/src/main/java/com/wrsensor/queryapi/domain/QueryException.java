@@ -10,6 +10,8 @@ public class QueryException extends RuntimeException {
     public static final String UNAUTHENTICATED = "UNAUTHENTICATED";
     public static final String INSUFFICIENT_ROLE = "INSUFFICIENT_ROLE";
     public static final String SENSOR_NOT_FOUND = "SENSOR_NOT_FOUND";
+    /** FEAT-0008 BR-007/AF-06: el registry no respondió o respondió con error. */
+    public static final String REGISTRY_UNAVAILABLE = "REGISTRY_UNAVAILABLE";
 
     public final String code;
 

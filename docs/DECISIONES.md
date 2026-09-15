@@ -208,3 +208,46 @@ deuda: `retry-max-attempts` se declara sin uso).
 la config se refresca (el estado `INACTIVO` y las bandas nuevas ahora se ven) y el token vencido ya
 no deja el servicio en fallo permanente; `ingestion-service` pasa a exponer un endpoint HTTP interno
 (ya levantaba Netty por `WebClient`).
+
+## ADR-0019 · Habilitadores del frontend: CORS en el gateway, auth del handshake WS y resumen de sensores (FEAT-0008)
+**Contexto:** el backend ya exponía login, CRUD, histórico, `/actual` y los WS, pero tres huecos
+bloqueaban el dashboard: (a) **no había CORS en ningún servicio** — verificado, cero
+configuraciones —, así que un SPA servido desde otro origen (Vite en dev) no podía consumir la API
+ni mandar `Authorization`; (b) los **WebSocket no validaban token** (`alerting-service` y
+`query-api` los exponen sin auth, brecha registrada en ADR-0016) y el navegador **no puede** enviar
+`Authorization` en el upgrade; (c) el mapa necesitaba la metadata de todos los sensores **y** su
+última lectura, lo que obligaba a **N+1** requests (`GET /api/sensores` + `/{id}/actual` por sensor)
+bajo un rate limit de 120/min.
+**Decisión (HO-Gate humano 2026-09-14):** el **SPA lo sirve el gateway** (mismo origen, punto de
+entrada único; implementación en FEAT-0009); **CORS acotado y configurable** en el gateway
+(`gateway.cors.origenes`, **vacío por default** = same-origin only, `allow-credentials: false`,
+preflight respondido por el gateway con `204` sin consumir cupo ni tocar el downstream, `403` sin
+headers cuando el origen no está permitido); **autenticación del handshake WS en el gateway**
+(verificador HS256 propio con JDK crypto — sin dependencias nuevas, mismo formato que el
+`JwtAdapter` del registry — que valida firma + `exp` + rol **antes** de completar el upgrade,
+aceptando `?token=` o `Authorization: Bearer`, sin propagar ni loguear el token); **endpoint
+`GET /api/sensores/resumen` en `query-api`** (roles {ADMIN, VIEWER}, metadata vía REST al registry
+con timeout explícito y paginación keyset, última lectura de todos los sensores en **una** consulta
+`DISTINCT ON (sensor_id) … ORDER BY sensor_id, ts DESC`, `502 REGISTRY_UNAVAILABLE` sin datos
+parciales); el **simulador sigue fuera del gateway** (la demo usa `docker-compose.dev.yml`).
+**Hallazgo del Loop (bug real, no del backlog):** la primera versión del filtro CORS rechazaba con
+`403` *todo* request con `Origin` no listado, incluidos los del **propio origen** — y el navegador
+manda `Origin` en los POST y, sobre todo, en el **handshake WebSocket**. Con la lista vacía
+(default de producción) el SPA servido por el gateway no habría podido ni loguearse ni abrir un WS.
+Lo detectó el IT del túnel WS de FEAT-0007 (pasaba antes de FEAT-0008 y falló después). Corrección:
+**same-origin no es CORS** — si el `Origin` coincide con el host del gateway (vía `Host` o
+`X-Forwarded-Host`/`-Proto` cuando hay un terminador TLS) el request pasa sin headers CORS y sin
+bloqueo; el `403` queda para orígenes cruzados realmente ajenos al gateway.
+**Alternativas descartadas:** CORS en cada servicio (cuatro configuraciones que se desincronizan y
+preflight que sí consume cupo); comodín `*` por default (inaceptable con `Authorization`);
+`Sec-WebSocket-Protocol` para el token (funciona pero ensucia el subprotocolo negociado; queda como
+evolución documentada); cookie de sesión (el proyecto no emite cookies); componer el resumen en el
+gateway (lo convertiría en BFF y contradice el rol de proxy simple de ADR-0016); que el SPA arme el
+mapa con N+1 (inviable bajo el cupo de 120/min); cache del resumen en Redis (fuera de alcance).
+**Consecuencias:** el dashboard puede autenticarse, mapear y recibir datos en vivo a través del
+punto de entrada único; los WS dejan de ser públicos (un upgrade sin token ya no abre sesión ni
+llega al downstream); el mapa se resuelve con 2 requests en lugar de 1+N; el resumen **acopla
+`query-api` al `sensor-registry` por REST** (nueva dependencia de runtime con credenciales VIEWER
+configurables y un modo de fallo explícito `502`). Regresión de FEAT-0007 asumida y documentada: el
+túnel WS ahora exige token, así que su IT manda uno válido (AC-006 lo contempla).
+

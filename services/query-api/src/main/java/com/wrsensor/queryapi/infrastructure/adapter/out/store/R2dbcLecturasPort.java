@@ -16,9 +16,13 @@ import java.util.UUID;
 /**
  * Adapter out (R2DBC): consulta de la hypertable `lectura` (BR-001). Timestamps
  * bindeados como OffsetDateTime UTC (columna timestamptz).
+ *
+ * <p>Implementa también {@link UltimasLecturasPort} (FEAT-0008 BR-006): el resumen del mapa
+ * resuelve la última lectura de todos los sensores con un único {@code DISTINCT ON}.</p>
  */
 @Component
-public class R2dbcLecturasPort implements LecturasPort {
+public class R2dbcLecturasPort
+        implements LecturasPort, com.wrsensor.queryapi.application.port.UltimasLecturasPort {
 
     private static final String LISTAR = """
             SELECT sensor_id, ts, valor, unidad_medida, severidad, calidad
@@ -35,6 +39,17 @@ public class R2dbcLecturasPort implements LecturasPort {
             WHERE sensor_id = $1
             ORDER BY ts DESC
             LIMIT 1
+            """;
+
+    /**
+     * FEAT-0008 BR-006: última lectura de todos los sensores en **una sola** consulta.
+     * {@code DISTINCT ON (sensor_id)} con {@code ORDER BY sensor_id, ts DESC} es el idioma de
+     * Postgres para "la fila más nueva por grupo" y es lo que exige el AC-010 (nunca N+1).
+     */
+    private static final String ULTIMAS_POR_SENSOR = """
+            SELECT DISTINCT ON (sensor_id) sensor_id, ts, valor, unidad_medida, severidad, calidad
+            FROM lectura
+            ORDER BY sensor_id, ts DESC
             """;
 
     private final DatabaseClient db;
@@ -73,6 +88,16 @@ public class R2dbcLecturasPort implements LecturasPort {
     private static LecturaConsulta mapRow(UUID sensorId, Instant ts, BigDecimal valor,
                                           String unidad, String severidad, String calidad) {
         return new LecturaConsulta(sensorId, ts, valor, unidad, severidad, calidad);
+    }
+
+    @Override
+    public Flux<LecturaConsulta> ultimasPorSensor() {
+        return db.sql(ULTIMAS_POR_SENSOR)
+                .map((row, meta) -> mapRow(row.get("sensor_id", UUID.class),
+                        row.get("ts", OffsetDateTime.class).toInstant(),
+                        (BigDecimal) row.get("valor"), row.get("unidad_medida", String.class),
+                        str(row, "severidad"), str(row, "calidad")))
+                .all();
     }
 
     /** FIX-0004: `severidad` puede ser NULL (lectura ERROR_SENSOR) — get tipado lanza NPE. */

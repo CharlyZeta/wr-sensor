@@ -45,6 +45,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Nota de configuración: la clase `lectura` se sube a 120/60 s con burst 120 para que el AC-005
  * ("120 peticiones dentro del límite") sea alcanzable en ráfaga; con el burst default (60) el
  * cupo instantáneo es 60 — comportamiento correcto del token bucket, verificado aparte.</p>
+ *
+ * <p>FEAT-0008 BR-003: el handshake WebSocket ahora exige token válido, así que las conexiones de
+ * este test mandan {@code ?token=} acuñado con el mismo secreto/format que el registry.</p>
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "gateway.rate-limit.clases.lectura.peticiones=120",
@@ -293,7 +296,10 @@ class FEAT0007MainFlowIT {
     private List<String> ws(String path) {
         List<String> recibidos = new CopyOnWriteArrayList<>();
         ReactorNettyWebSocketClient ws = new ReactorNettyWebSocketClient();
-        Disposable sub = ws.execute(URI.create("ws://127.0.0.1:" + puertoGateway + path), sesion ->
+        // FEAT-0008 BR-003: el upgrade exige token; el túnel de FEAT-0007 se prueba autenticado.
+        String url = "ws://127.0.0.1:" + puertoGateway + path + "?token="
+                + GatewayTestTokens.vigente("VIEWER");
+        Disposable sub = ws.execute(URI.create(url), sesion ->
                 sesion.receive()
                         .map(m -> m.getPayloadAsText())
                         .doOnNext(recibidos::add)

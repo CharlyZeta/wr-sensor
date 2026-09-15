@@ -18,6 +18,8 @@ public class QueryErrorHandler {
             case QueryException.UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED;
             case QueryException.INSUFFICIENT_ROLE -> HttpStatus.FORBIDDEN;
             case QueryException.SENSOR_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            // FEAT-0008 AF-06: el registry caído es un fallo del upstream, no del request.
+            case QueryException.REGISTRY_UNAVAILABLE -> HttpStatus.BAD_GATEWAY;
             default -> HttpStatus.BAD_REQUEST; // SENSOR_INVALID_*, INVALID_RANGE
         };
         return ResponseEntity.status(status).body(Map.of("code", ex.code, "message", ex.getMessage()));

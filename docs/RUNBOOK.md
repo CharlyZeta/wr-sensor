@@ -35,7 +35,7 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 & …\mvn.cmd -o test -Dtest='FEAT0011MainFlowIT'
 ```
 
-### Resumen de suites (verde al 2026-09-13)
+### Resumen de suites (verde al 2026-09-14)
 
 | Módulo | Unit/assert | ITs | Total |
 |---|---|---|---|
@@ -43,12 +43,13 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `data-simulator` | 19 | 1 | 20 |
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
-| `query-api` | 11 | 1 | 12 |
-| `api-gateway` | 31 | 16 | 47 |
-| **Total** | **248** | **87** | **335** |
+| `query-api` | 33 | 8 | 41 |
+| `api-gateway` | 67 | 29 | 96 |
+| **Total** | **306** | **107** | **413** |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
-> `mvn -o test -Dtest='*IT'` y requieren Docker Desktop.
+> `mvn -o test -Dtest='*IT'` y requieren Docker Desktop (los de `api-gateway` no: usan
+> downstreams stub en proceso).
 
 ## 3. Credenciales y config dev
 
@@ -238,7 +239,83 @@ Los logs también marcan las transiciones: `WARN ... circuit breaker del registr
 `INFO ... SEMIABIERTO`/`CERRADO`. Si el circuito queda abierto mucho tiempo, revisar
 `sensor-registry` y su healthcheck (`docker compose ps sensor-registry`).
 
-## 8. Orquestación SDD-GL
+## 8. Habilitadores del frontend: CORS, WS autenticado y resumen (FEAT-0008)
+
+### CORS por entorno
+
+| Entorno | `GATEWAY_CORS_ORIGENES` | Efecto |
+|---|---|---|
+| Producción (SPA servido por el gateway) | *(vacío, default)* | same-origin only: el navegador no necesita CORS |
+| Desarrollo (SPA con Vite) | `http://localhost:5173` | habilita ese origen; varios separados por coma |
+| Consumidor externo | el origen real | agregarlo a la lista, nunca `*` en producción |
+
+```powershell
+# dev: SPA en Vite contra el gateway del compose
+$env:GATEWAY_CORS_ORIGENES = "http://localhost:5173"
+docker compose up -d api-gateway
+
+# preflight (lo responde el gateway: 204, sin cupo y sin downstream)
+curl -i -X OPTIONS http://localhost:8084/api/sensores/resumen `
+  -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: GET' `
+  -H 'Access-Control-Request-Headers: Authorization'
+# → HTTP/1.1 204 · Access-Control-Allow-Origin: http://localhost:5173 · Access-Control-Max-Age: 3600
+
+# origen no permitido → 403 sin headers Access-Control-*
+curl -i -X OPTIONS http://localhost:8084/api/sensores/resumen `
+  -H 'Origin: http://otro.example' -H 'Access-Control-Request-Method: GET'
+```
+
+Otros knobs: `GATEWAY_CORS_MAX_AGE` (segundos), `gateway.cors.metodos|headers|headers-expuestos|
+permitir-credenciales` (por default `false`: el token viaja en header, no en cookies). Un `Origin`
+igual al del propio gateway **no** es un request CORS (el navegador lo manda en POST y en el
+handshake WS): pasa sin headers y sin bloqueo.
+
+### Autenticar un WebSocket a mano
+
+`/ws/alertas` y `/ws/sensores/{id}` exigen JWT válido + rol `ADMIN`/`VIEWER`
+(`gateway.ws.roles-permitidos`, `gateway.ws.jwt-secreto` = `AUTH_JWT_SECRET`):
+
+```powershell
+$token = (Invoke-RestMethod -Method POST http://localhost:8084/api/auth/login `
+  -ContentType 'application/json' `
+  -Body '{"email":"viewer@wrsensor.local","password":"Viewer123!"}').token
+
+# navegador / websocat: el token va por query string (el upgrade no acepta headers propios)
+websocat "ws://localhost:8084/ws/alertas?token=$token"
+
+# cliente no navegador: también vale el header
+websocat -H="Authorization: Bearer $token" ws://localhost:8084/ws/alertas
+
+# sin token → 401 UNAUTHENTICATED y el downstream no recibe ninguna conexión
+curl -i http://localhost:8084/ws/alertas -H 'Upgrade: websocket' -H 'Connection: Upgrade'
+```
+
+El token del query string **no** se loguea (la línea de acceso registra sólo el path) ni se propaga
+al downstream. Si el nodo queda detrás de un terminador TLS, setear `X-Forwarded-Proto`/`-Host`
+para que la detección de same-origin siga funcionando.
+
+### Resumen del mapa
+
+```powershell
+curl -s http://localhost:8084/api/sensores/resumen -H "Authorization: Bearer $token"
+# → [{"id":"…","codigo":"S-01",…,"ultimaLectura":{"valor":21.5,"timestamp":"…","severidad":"NORMAL","calidad":"OK"}}]
+```
+
+Configuración (`services/query-api/src/main/resources/application.yml`, prefijo `query.registry`):
+
+| Pieza | Env | Default |
+|---|---|---|
+| URL del registry | `REGISTRY_URL` | `http://localhost:8080` |
+| Credenciales de servicio (VIEWER) | `QUERY_REGISTRY_EMAIL` / `QUERY_REGISTRY_PASS` | `viewer@wrsensor.local` / `Viewer123!` |
+| Timeout de respuesta | `QUERY_REGISTRY_TIMEOUT_MS` | 5000 ms |
+| Timeout de conexión | `QUERY_REGISTRY_CONEXION_TIMEOUT_MS` | 2000 ms |
+| Página del listado keyset | `QUERY_REGISTRY_LIMIT_PAGINA` | 200 |
+| Tope de sensores | `QUERY_REGISTRY_MAX_SENSORES` | 5000 |
+
+Si el registry no responde, el endpoint devuelve `502 REGISTRY_UNAVAILABLE` (nunca una lista
+parcial). El resumen es la fuente del mapa y del listado del SPA (`FEAT-0009`).
+
+## 9. Orquestación SDD-GL
 
 - Orquestador: `CLAUDE.md` (Claude Code) / `AGENTS.md` (Antigravity). Arranque: leer
   `contracts/[ID].md` → DRAFT/GATE → `sdd-gate`; APPROVED/LOOP → `sdd-loop`;

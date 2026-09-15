@@ -17,6 +17,17 @@ query:
   lecturas:
     exchange: sensor.lecturas
     queue: query.sensor.lecturas
+  # FEAT-0008 BR-007: cliente REST al sensor-registry para la metadata del resumen (mapa).
+  # Timeouts EXPLICITOS (nunca el default de la libreria) y paginacion keyset con tope de seguridad.
+  registry:
+    base-url: ${REGISTRY_URL:http://localhost:8080}
+    auth:
+      email: ${QUERY_REGISTRY_EMAIL:viewer@wrsensor.local}
+      password: ${QUERY_REGISTRY_PASS:Viewer123!}
+    timeout-ms: ${QUERY_REGISTRY_TIMEOUT_MS:5000}
+    conexion-timeout-ms: ${QUERY_REGISTRY_CONEXION_TIMEOUT_MS:2000}
+    limit-pagina: ${QUERY_REGISTRY_LIMIT_PAGINA:200}
+    max-sensores: ${QUERY_REGISTRY_MAX_SENSORES:5000}
 
 logging:
   level:

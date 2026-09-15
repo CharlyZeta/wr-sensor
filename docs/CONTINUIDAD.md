@@ -11,11 +11,11 @@
   orquestada con Docker Compose, con un **punto de entrada único** (`api-gateway`).
 - **Cómo se trabajó**: con el frame **SDD-GL** (spec-driven, Gate → aprobación humana → Loop
   autónomo → RESOLVED) instalado en este repo. Cada work item tiene su **Contract** en `contracts/`.
-- **Estado**: **18 work items RESOLVED** (11 FEAT + 7 FIX), **377/377 criterios ✅**, **335 tests**
-  (248 unit + 87 IT). El único trabajo abierto es **`FEAT-0008` en Gate** (DRAFT, esperando
-  HO-Gate): habilitadores del frontend (CORS, auth de WebSocket, resumen de sensores).
-- **Siguiente paso natural**: aprobar `FEAT-0008` y ejecutar su Loop; después `FEAT-0009`
-  (frontend React Fase A).
+- **Estado**: **19 work items RESOLVED** (12 FEAT + 7 FIX), **408/408 criterios ✅**, **413 tests**
+  (306 unit + 107 IT). No queda trabajo abierto: `FEAT-0008` (CORS, auth de WebSocket y resumen de
+  sensores) cerró su Loop el 2026-09-14 y sólo espera la **validación humana del resultado**.
+- **Siguiente paso natural**: abrir `FEAT-0009` — SPA React Fase A (login + mapa Leaflet + detalle en
+  vivo por WS autenticado + feed de alertas + serie de 24 h), servido por el gateway.
 
 ## 1. Qué leer, en este orden
 
@@ -23,7 +23,7 @@
 |---|---|---|
 | 1 | `docs/ESTADO-SDD.md` | Tablero: estado de cada contract, criterios, suites, backlog, cómo verificar |
 | 2 | `docs/CONTINUIDAD.md` (este) | Cómo retomar: proceso, comandos, entorno, trampas, trabajo en curso |
-| 3 | `contracts/FEAT-0008.md` | El trabajo abierto, con decisiones aprobadas y su Ambiguity Log |
+| 3 | `contracts/FEAT-0008.md` | El último work item cerrado (31/31), con decisiones y ADR-0019 asociado |
 | 4 | `CLAUDE.md` / `AGENTS.md` | Orquestador SDD-GL (qué skill cargar según el estado del contract) |
 | 5 | `docs/CHANGELOG.md` | Qué cambió y por qué, con causa/impacto/evidencia por fix |
 | 6 | `docs/ARQUITECTURA.md`, `docs/API.md`, `docs/RUNBOOK.md` | Cómo funciona y cómo se corre |
@@ -75,8 +75,8 @@ WR-Sensor/
     ├── data-simulator/          # lecturas sintéticas         (:8081)
     ├── ingestion-service/       # consume + severidad + outbox (interno; dev :8090)
     ├── alerting-service/        # histéresis + WS /ws/alertas (:8083)
-    ├── query-api/               # histórico/última/WS         (:8082)
-    └── api-gateway/             # punto de entrada único      (:8084)
+    ├── query-api/               # histórico/última/resumen/WS   (:8082)
+    └── api-gateway/             # entrada única + CORS + auth WS (:8084)
 ```
 
 ## 4. Comandos exactos
@@ -119,26 +119,32 @@ estado del circuit breaker `http://localhost:8090/api/ingestion/resiliencia` (co
 | **Sandbox y named pipes** | `docker`/`git push` fallan con `permission denied` aunque Docker esté arriba | El sandbox debe estar en modo amplio (danger-full-access) para que el proceso pueda abrir el pipe |
 | **Mockito + JDK 25** | `Could not initialize plugin: MockMaker` / `Could not self-attach … external process` | Ya resuelto: `services/ingestion-service/src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker` = `mock-maker-subclass`. No usar el inline mock maker (necesita agente) |
 | **`mvn test` no corre ITs** | Parece que faltan tests | Surefire excluye `*IT`: usar `-Dtest='*IT'` |
-| **Build offline** | `mvn -o` falla si falta un artefacto | Todo está en `~/.m2`; **no se agregaron dependencias nuevas** en FEAT-0007/FIX-0006/FIX-0007. Si hiciera falta una, hay que cachearla una vez sin `-o` |
+| **Build offline** | `mvn -o` falla si falta un artefacto | Todo está en `~/.m2`; **no se agregaron dependencias nuevas** en FEAT-0007/FEAT-0008/FIX-0006/FIX-0007. Si hiciera falta una, hay que cachearla una vez sin `-o` |
+| **Jackson 3 (Boot 4.1)** | `package com.fasterxml.jackson.databind does not exist` al compilar | Spring Boot 4.1 trae **Jackson 3** (`tools.jackson.databind`, groupId `tools.jackson.core`): usar `JsonMapper`/`JsonNode` de `tools.jackson.*`. Las anotaciones siguen en `com.fasterxml.jackson.annotation` (vía testcontainers). Patrón del repo: `JsonMapper.builder().disable(FAIL_ON_UNKNOWN_PROPERTIES).build()` |
+| **ITs del gateway sin Docker** | `*-Dtest='*IT'` no necesita contenedores | Los ITs de `api-gateway` levantan downstreams stub en proceso (HttpServer del JDK + Reactor Netty); el de `query-api` sí usa Testcontainers |
 | **Heredoc en pwsh** | `ParserError: Falta la especificación de archivo…` | Escribir el mensaje de commit a un archivo y usar `git commit -F archivo` |
 | **Mensajes largos inline** | `Fatal error. Internal CLR error (0x80131506)` | Idem: mensaje a archivo |
 | **Avisos LF→CRLF** | `warning: LF will be replaced by CRLF` en `git add` | Inofensivo, ignorar |
 | **Fechas del proyecto** | Los commits/auditorías dicen 2026-09 | Es la línea de tiempo del proyecto, no un error |
 
-## 6. Trabajo abierto: `FEAT-0008` (Gate, esperando HO-Gate)
+## 6. Último trabajo cerrado: `FEAT-0008` (Loop 31/31 ✅, pendiente validación humana)
 
-**Qué es:** los tres habilitadores que el frontend necesita del backend.
+**Qué es:** los tres habilitadores que el frontend necesita del backend. **Los tres están
+implementados y con tests verdes** (`api-gateway` 67+29 · `query-api` 33+8).
 
-| # | Alcance | Decisión ya aprobada |
+| # | Alcance | Estado / decisión aprobada |
 |---|---|---|
-| 1 | **CORS** en el gateway, configurable (`gateway.cors.origenes`, default vacío; dev `http://localhost:5173`), preflight respondido por el gateway sin consumir cupo | Aprobado: **se agrega, acotado** |
-| 2 | **Autenticación del handshake WebSocket** (`/ws/alertas`, `/ws/sensores/**`) validando JWT (HS256 + `exp`) en el gateway; token por `?token=` o `Authorization: Bearer`; sin token → `401 UNAUTHENTICATED` antes del upgrade | Aprobado: **se implementa ahora** (deja de ser brecha de ADR-0016) |
-| 3 | **`GET /api/sensores/resumen`** en `query-api`: todos los sensores con metadata (registry) + última lectura (hypertable, **una** consulta), roles `{ADMIN, VIEWER}`, enrutado por el gateway con clase `lectura` | Aprobado: **se agrega** (evita N+1) |
+| 1 | **CORS** en el gateway, configurable (`gateway.cors.origenes`, default vacío; dev `http://localhost:5173`), preflight respondido por el gateway sin consumir cupo | ✅ Implementado (`FiltroCors`). **Ojo:** same-origin **no** es CORS — el `Origin` propio (POST y handshake WS) pasa sin headers y sin bloqueo |
+| 2 | **Autenticación del handshake WebSocket** (`/ws/alertas`, `/ws/sensores/**`) validando JWT (HS256 + `exp`) en el gateway; token por `?token=` o `Authorization: Bearer`; sin token → `401 UNAUTHENTICATED` antes del upgrade | ✅ Implementado (`VerificadorJwt` + `AutenticadorWs`); el token no se propaga ni se loguea. **Deja de ser brecha de ADR-0016** |
+| 3 | **`GET /api/sensores/resumen`** en `query-api`: todos los sensores con metadata (registry) + última lectura (hypertable, **una** consulta), roles `{ADMIN, VIEWER}`, enrutado por el gateway con clase `lectura` | ✅ Implementado; registry caído → `502 REGISTRY_UNAVAILABLE` sin datos parciales |
 
 **Decidido y fuera de alcance de FEAT-0008**: el SPA lo **sirve el gateway** (implementación en
 FEAT-0009), el **simulador sigue sin ruta** (la demo usa el override de dev), el mapa usa
-**Leaflet**, y el frontend arranca por la **Fase A**. Pendiente: que el humano pase
-`Status: APPROVED` + `Mode: LOOP` en `contracts/FEAT-0008.md` para ejecutar el Loop (31 criterios).
+**Leaflet**, y el frontend arranca por la **Fase A**.
+
+**Antes de tocar nada de este work item, leer ADR-0019** (`docs/DECISIONES.md`): documenta la
+decisión de diseño y el bug que encontró el Loop (CORS rechazando el mismo origen, que rompía login
+y WS del SPA servido por el gateway).
 
 ## 7. Qué sigue después
 
@@ -151,9 +157,12 @@ FEAT-0009), el **simulador sigue sin ruta** (la demo usa el override de dev), el
      frontend **necesita red** (npm registry) — es la primera pieza que rompe la propiedad
      "build offline" del backend; conviene commitear el `package-lock.json` y construir el SPA en
      su propio stage de Docker.
-   - Falta agregar `node_modules/` y `dist/` al `.gitignore`.
+   - `node_modules/` y `dist/` ya están en el `.gitignore` (agregados al preparar FEAT-0009).
    - Tests del frontend: **Vitest + React Testing Library + MSW** (y Playwright para E2E). El
      Contract del frontend debe declarar ese runner como criterio verificable.
+   - El WS se autentica con `?token=<jwt>` (FEAT-0008): el SPA tiene que abrir
+     `ws(s)://<mismo-origen>/ws/alertas?token=…` y re-loguearse cuando el token expire (60 min).
+   - El mapa se alimenta de **`GET /api/sensores/resumen`** (una llamada), no de N+1.
 2. **Fase B**: CRUD de sensores (ADMIN) con validación y errores de dominio finos; manejo explícito
    de `calidad=ERROR_SENSOR`; control del simulador para la demo.
 3. **Fase C**: rangos largos con **continuous aggregates** (spec §9.2), historial de alertas
@@ -161,18 +170,23 @@ FEAT-0009), el **simulador sigue sin ruta** (la demo usa el override de dev), el
 4. **Follow-ups técnicos abiertos** (sin contract todavía): persistir `ultimaSeveridad` de ingestion
    (hoy en memoria por instancia), afinidad de `alerting-service` si se escala, **reintentos con
    backoff** (`messaging.retry-max-attempts` está **sin uso** — deuda declarada en FIX-0007),
-   historial de alertas, y decisión de tiles del mapa (OSM remoto vs mapa esquemático offline).
+   historial de alertas, decisión de tiles del mapa (OSM remoto vs mapa esquemático offline),
+   **caché del resumen** en Redis y **autenticación de los REST en el gateway** (FEAT-0008 sólo
+   autenticó el upgrade WS).
 
 ## 8. Cómo retomar (checklist)
 
 1. `git log --oneline -5` y `git status` → confirmar que `main` está al día con `origin/main`.
 2. Leer `docs/ESTADO-SDD.md` (tablero) y este documento.
-3. Si hay cambios en vuelo: `contracts/FEAT-0008.md` está **DRAFT/GATE**; para ejecutar el Loop hay
-   que aprobarlo (`Status: APPROVED` + `Mode: LOOP`) — **sólo el humano puede hacerlo**.
+3. **No hay contracts en vuelo**: todos están RESOLVED. Para el próximo work item (`FEAT-0009`)
+   hay que crear el Contract con `/sdd-feature` y **el humano** aprueba
+   (`Status: APPROVED` + `Mode: LOOP`) antes de que arranque el Loop.
 4. Verificar el entorno antes de tocar código:
    `docker version` (para ITs), `node --version` (para el frontend), `$env:JAVA_HOME` y `$mvn`.
 5. Correr la línea base para asegurarse de que el árbol está sano:
-   `& $mvn -o -f services\ingestion-service\pom.xml test` (88 unit deben pasar).
+   `& $mvn -o -f services\api-gateway\pom.xml test` (67 unit) y
+   `& $mvn -o -f services\query-api\pom.xml test` (33 unit) — son los módulos que tocó el último
+   work item. Los ITs del gateway **no necesitan Docker**; los de query-api sí.
 6. Continuar con el work item abierto siguiendo `protocol/gate.md` o `protocol/loop.md`.
 
 ## 9. Convenciones que no hay que romper

@@ -16,16 +16,16 @@
 | `data-simulator` | 🟢 parcial | `services/data-simulator/` — generador de lecturas sintéticas (6 sensores seed §9.5) que publica a `sensor.lecturas`; control `iniciar/detener/{id}/anomalia/estado` | `FEAT-0010` (RESOLVED) |
 | `ingestion-service` | 🟢 parcial | `services/ingestion-service/` — consume `sensor.lecturas`, persiste en TimescaleDB (hypertable `lectura`) y publica `AlertaEvento` simple a `sensor.alertas` (histéresis → FEAT-0012); DLQ por rechazos | `FEAT-0011` (RESOLVED) |
 | `alerting-service` | 🟢 parcial | `services/alerting-service/` — consume `sensor.alertas`, histéresis (subida inmediata, bajada confirmada por ventana), push WebSocket `/ws/alertas` | `FEAT-0012` (RESOLVED) |
-| `query-api` | 🟢 parcial | `services/query-api/` — histórico keyset, `/actual` (última lectura), `WS /ws/sensores/{id}` tiempo real (consume `sensor.lecturas`) | `FEAT-0013` (RESOLVED) |
-| Frontend (React + mapa Leaflet/MapLibre + dashboards) | ⬜ sin iniciar | — | — |
-| Infra local (Docker Compose de los 5 servicios) | ⬜ sin iniciar | — | — |
+| `query-api` | 🟢 parcial | `services/query-api/` — histórico keyset, `/actual` (última lectura), `WS /ws/sensores/{id}` tiempo real (consume `sensor.lecturas`) + **`GET /api/sensores/resumen`** para el mapa (FEAT-0008) | `FEAT-0013`, `FEAT-0008` (RESOLVED) |
+| `api-gateway` | 🟢 parcial | `services/api-gateway/` — punto de entrada único: tabla de rutas declarativa, rate limiting por clase\|IP, correlación, túnel WS + **CORS configurable y WS autenticado** (FEAT-0008) | `FEAT-0007`, `FEAT-0008` (RESOLVED) |
+| Frontend (React + mapa Leaflet + dashboards) | ⬜ sin iniciar | — (habilitadores del backend listos: `FEAT-0008`) | — |
+| Infra local (Docker Compose de los 6 servicios) | 🟢 parcial | `docker-compose.yml` (+ `docker-compose.dev.yml`) con los 6 servicios, Postgres+TimescaleDB, RabbitMQ; sólo el gateway publica puerto | — |
 
-**Conclusión:** el proyecto sigue en ~80%. **Pipeline completo + capa de consulta**: histórico/última/tiempo real vía `query-api` (FEAT-0013). Falta frontend e infra (docker-compose). (Histórico previo: pipeline de datos completo en
-funcionamiento**: `data-simulator` (FEAT-0010) publica lecturas → `ingestion-service`
-(FEAT-0011) persiste en TimescaleDB y emite severidad a `sensor.alertas` →
-`alerting-service` (FEAT-0012) aplica histéresis y notifica por WebSocket. Falta la
-capa de consulta (`FEAT-0013` query-api), frontend e infra (docker-compose).
-CRUD + auth (FEAT-0001..0006, FIX-0001) cerrados.
+**Conclusión:** el proyecto sigue en ~85%. **Backend completo y con entrada única**: pipeline de
+datos (`data-simulator` → `ingestion-service` → `alerting-service`), capa de consulta (`query-api`)
+y `api-gateway` con rate limiting, CORS y WebSocket autenticado. **Todos los habilitadores del
+frontend están cerrados** (FEAT-0008): lo único que falta del alcance v1 es el **SPA React**
+(`FEAT-0009`) y los agregados de TimescaleDB (Fase C).
 
 ---
 
@@ -139,6 +139,38 @@ preservada.
 | `DeactivateSensorServiceTest` | 3 ✅ | BR-002/004/005 (404, UPDATE INACTIVO, no-op idempotente) |
 
 **Suite `sensor-registry` actual (2026-09-09): 89 unit/assert + 34 ITs = 123 verdes.**
+
+### 2m. `FEAT-0008` (RESOLVED 2026-09-14) — habilitadores del frontend (CORS, WS autenticado, resumen)
+
+Origen: análisis de requerimientos/factibilidad/alcance del frontend (2026-09-14). Único contract
+con **`Gate-Mode: STRICT`**: el humano aprobó alcance, decisiones y Ambiguity Log antes del Loop
+(SPA servido por el gateway, CORS acotado y configurable, auth de WS ahora, endpoint de resumen,
+simulador fuera del gateway, Leaflet + Fase A para el SPA).
+
+- **Problema**: el backend ya tenía login, CRUD, histórico, `/actual` y WS, pero tres huecos
+  bloqueaban el dashboard: (a) **cero configuraciones de CORS** en el repo → un SPA en otro origen
+  no podía ni mandar `Authorization`; (b) los **WS no validaban token** (brecha de ADR-0016) y el
+  navegador no puede mandar headers en el upgrade; (c) el mapa necesitaba metadata + última lectura
+  y sólo se podía con **N+1** requests bajo un cupo de 120/min.
+- **Solución**: CORS configurable en el gateway con preflight resuelto por el gateway (`204`, sin
+  cupo, sin downstream); **auth del handshake WS** con verificador HS256 propio (`?token=` o
+  `Bearer`, firma + `exp` + rol, sin propagar ni loguear el token) y `401` antes del upgrade;
+  **`GET /api/sensores/resumen`** en `query-api` con metadata del registry por REST (keyset, timeout
+  explícito) y la última lectura de **todos** los sensores en **una** consulta
+  (`DISTINCT ON (sensor_id) … ORDER BY sensor_id, ts DESC`), con `502 REGISTRY_UNAVAILABLE` sin
+  datos parciales; ruta `query-resumen` en la tabla del gateway (clase `lectura`, patrón más
+  específico).
+- **Bug real encontrado por el Loop**: el primer filtro CORS rechazaba con `403` cualquier request
+  con `Origin` no listado — incluidos los del **propio origen**, que el navegador manda en POST y en
+  el **handshake WS**. Con la lista vacía (default de producción) el SPA servido por el gateway no
+  habría podido ni loguearse ni abrir un WS. Lo destapó el IT del túnel WS de FEAT-0007 (verde antes,
+  rojo después). Corregido con la regla **same-origin no es CORS** (`Host` o
+  `X-Forwarded-Host`/`-Proto` detrás de un terminador TLS).
+- **Regresión asumida**: el túnel WS de FEAT-0007 ahora exige token (AC-006 lo contempla); su IT
+  manda un JWT válido.
+- **Evidencia**: `contracts/FEAT-0008.md` (31/31 ✅), ADR-0019, suites `api-gateway` 67+29 y
+  `query-api` 33+8 (413 tests verdes en total).
+
 ### 2l. `FIX-0007` (RESOLVED 2026-09-14) — resiliencia del lookup de config de sensores
 
 Origen: `docs/FIX-0007-circuit-breaker.md` (backlog), promocionado a `contracts/FIX-0007.md` con
@@ -280,7 +312,7 @@ Cada fila es candidato a un nuevo Contract (`/sdd-feature` salvo las marcadas `/
 ### 3c. Transversal / infra
 | Ítem | Qué falta |
 |---|---|
-| `docker-compose.yml` | ✅ CREADO (2026-09-09): 5 servicios + Postgres + TimescaleDB + Redis + RabbitMQ; `docker compose up` |
+| `docker-compose.yml` | ✅ CREADO (2026-09-09): 6 servicios (incluye `api-gateway`) + Postgres + TimescaleDB + Redis + RabbitMQ; `docker compose up`. Sólo el gateway publica puerto; `docker-compose.dev.yml` habilita el acceso directo para debug |
 | `application.yml` de cada servicio | ✅ reintentos/DLQ configurables (`messaging.retry.*`, `messaging.dead-letter.exchange`) — stack exige "nunca hardcodeados" |
 | Datos semilla | 6 sensores reales Paraná+Salado/Santa Fe (spec §9.5) |
 | Manifiestos K8s | solo documentación futura (v1 no se implementan) |
@@ -293,10 +325,10 @@ Cada fila es candidato a un nuevo Contract (`/sdd-feature` salvo las marcadas `/
 1. Arrancar el orquestador (`CLAUDE.md` rige). Independiente del Work Item,
    leer `contracts/[ID].md`; si no existe → `/sdd-feature` (o `/sdd-fix`) para crearlo.
 2. **Recomendación de orden lógico de dependencias:**
-   `FEAT-0011` (ingestion: consume `sensor.lecturas`, persiste TimescaleDB, evalúa
-   severidad) → `FEAT-0012` (alerting) → `FEAT-0013` (query-api) → frontend →
-   docker-compose. Productor (`FEAT-0010`) y CRUD/auth (`FEAT-0001..0006`) ya están
-   cerrados.
+   ~~`FEAT-0011` → `FEAT-0012` → `FEAT-0013` → frontend → docker-compose~~ **cerrado**: los cinco
+   servicios, el gateway (`FEAT-0007`) y los habilitadores del frontend (`FEAT-0008`) están
+   completos. Lo que sigue es **`FEAT-0009` (SPA React, Fase A)**: login + mapa Leaflet con
+   `GET /api/sensores/resumen` + detalle en vivo por WS autenticado + feed de alertas + serie de 24 h.
 3. Frame SDD-GL: actualizado a v0.3.0 (protocol EXPRESS/STRICT, Glass Box en
    `.sdd/runs/`, AGENTS.md + `.agents/skills`, presets, mcp, CHANGELOG). Los agentes
    `.claude/agents/*` usan `model: sonnet` (v0.3.0 del repo).
@@ -312,10 +344,11 @@ JAVA_HOME="/c/Program Files/Amazon Corretto/jdk25.0.3_9" \
 > Los ITs necesitan Docker Desktop corriendo (Testcontainers: postgres + rabbitmq).
 
 ### 3d. Backlog de mejoras EN ESPERA (sin ejecutar)
-Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idempotencia-ingestion.md`,
-`FIX-0004-validacion-rango-fisico.md`, `FIX-0005-gateway-rate-limiting.md`,
-`FIX-0006-particionamiento-consumers.md`, `FIX-0007-circuit-breaker.md` (todos DRAFT/GATE).
-**Estado: aguardando la orden de ejecución del humano** (no se procesan todavía).
+Documentos `docs/FIX-0002-schema-versionado-lecturas.md`,
+`FIX-0003-outbox-idempotencia-ingestion.md`, `FIX-0004-validacion-rango-fisico.md`,
+`FIX-0005-gateway-rate-limiting.md`, `FIX-0006-particionamiento-consumers.md`,
+`FIX-0007-circuit-breaker.md`: **todos promocionados y resueltos** como contracts
+(FIX-0003..FIX-0007, FEAT-0007). No queda backlog de fixes en espera.
 
 > **Mapeo de IDs (serie autoritativa = `contracts/`):**
 > - `docs/FIX-0003-outbox-idempotencia-ingestion.md` → **PROMOCIONADO Y RESUELTO como
@@ -334,11 +367,15 @@ Documentos `docs/FIX-0002-schema-versionado-lecturas.md`, `FIX-0003-outbox-idemp
 >   default 300/60 s, WS 30/60 s) y auth de WebSocket fuera de alcance (brecha documentada).
 > - **Pendientes reales del backlog**: ninguno. `docs/FIX-0007-circuit-breaker.md` →
 >   **PROMOCIONADO como `contracts/FIX-0007.md`** (RESOLVED 2026-09-14).
-> - **En curso**: `contracts/FEAT-0008.md` — **habilitadores del frontend** (CORS configurable, auth
->   del handshake WebSocket y `GET /api/sensores/resumen`), Gate STRICT, 31 criterios, **pendiente
->   HO-Gate**. Decisiones humanas 2026-09-14: el SPA lo sirve el gateway (mismo origen), CORS
->   acotado, auth de WS ahora, endpoint de resumen, simulador fuera del gateway, mapa con **Leaflet**
->   y frontend arrancando por la **Fase A** (el SPA es `FEAT-0009`).
+> - **En curso**: ninguno. `contracts/FEAT-0008.md` — **habilitadores del frontend** (CORS
+>   configurable, auth del handshake WebSocket y `GET /api/sensores/resumen`), Gate STRICT aprobado
+>   por el humano y **Loop completado 2026-09-14 (31/31 ✅)**; queda la validación humana del
+>   resultado. Decisiones humanas 2026-09-14: el SPA lo sirve el gateway (mismo origen), CORS
+>   acotado, auth de WS ahora (implementada), endpoint de resumen, simulador fuera del gateway, mapa
+>   con **Leaflet** y frontend arrancando por la **Fase A** (el SPA es `FEAT-0009`, próximo work item).
+> - **Siguiente work item**: `contracts/FEAT-0009.md` (a crear con `/sdd-feature`) — SPA React Fase A:
+>   login + mapa Leaflet (`GET /api/sensores/resumen`) + detalle en vivo por WS autenticado + feed de
+>   alertas + serie de 24 h; servido por el gateway y con Vitest + RTL + MSW + Playwright.
 > - **Handoff**: `docs/CONTINUIDAD.md` resume estado, proceso, comandos, entorno y trampas para
 >   retomar el proyecto sin contexto previo.
 > - `docs/FIX-0002-schema-versionado-lecturas.md` → **PROMOCIONADO como `contracts/FIX-0006.md`**

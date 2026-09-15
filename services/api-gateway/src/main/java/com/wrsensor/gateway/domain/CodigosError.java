@@ -1,8 +1,8 @@
 package com.wrsensor.gateway.domain;
 
 /**
- * Códigos de error del gateway (FEAT-0007 BR-009), alineados con la convención
- * {@code {"code","message"}} de {@code docs/API.md}.
+ * Códigos de error del gateway (FEAT-0007 BR-009 / FEAT-0008 BR-002/BR-003), alineados con la
+ * convención {@code {"code","message"}} de {@code docs/API.md}.
  */
 public final class CodigosError {
 
@@ -12,6 +12,12 @@ public final class CodigosError {
     public static final String UPSTREAM_TIMEOUT = "UPSTREAM_TIMEOUT";
     public static final String WS_UPGRADE_REQUIRED = "WS_UPGRADE_REQUIRED";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
+    /** FEAT-0008 BR-003: upgrade WS sin token válido (ausente, mal firmado o expirado). */
+    public static final String UNAUTHENTICATED = "UNAUTHENTICATED";
+    /** FEAT-0008 BR-003: token válido pero con rol fuera de la lista permitida. */
+    public static final String INSUFFICIENT_ROLE = "INSUFFICIENT_ROLE";
+    /** FEAT-0008 BR-002: preflight o request desde un origen no permitido. */
+    public static final String ORIGIN_NOT_ALLOWED = "ORIGIN_NOT_ALLOWED";
 
     private CodigosError() {
     }

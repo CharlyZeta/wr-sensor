@@ -10,7 +10,7 @@ import java.util.Map;
  * documentados en {@code application.yml}; nada hardcodeado en el código.
  */
 @ConfigurationProperties(prefix = "gateway")
-public record GatewayProperties(List<RutaCfg> rutas, RateLimitCfg rateLimit) {
+public record GatewayProperties(List<RutaCfg> rutas, RateLimitCfg rateLimit, CorsCfg cors, WsCfg ws) {
 
     /**
      * Ruta declarada: patrón de path, métodos (vacío = todos), destino y clase de límite.
@@ -44,4 +44,62 @@ public record GatewayProperties(List<RutaCfg> rutas, RateLimitCfg rateLimit) {
     }
 
     public record LimiteCfg(Integer peticiones, Integer ventanaSegundos, Integer burst) {}
+
+    /**
+     * CORS (FEAT-0008 BR-001): lista de orígenes permitidos vacía = mismo origen únicamente (el
+     * default seguro; el SPA en dev se habilita con {@code GATEWAY_CORS_ORIGENES}).
+     */
+    public record CorsCfg(List<String> origenes, List<String> metodos, List<String> headers,
+                          List<String> headersExpuestos, Long maxAgeSegundos,
+                          Boolean permitirCredenciales) {
+
+        public List<String> origenesOrDefault() {
+            return origenes == null ? List.of()
+                    : origenes.stream().filter(o -> o != null && !o.isBlank())
+                            .map(String::trim).toList();
+        }
+
+        public List<String> metodosOrDefault() {
+            return metodos == null || metodos.isEmpty()
+                    ? List.of("GET", "POST", "PUT", "DELETE", "OPTIONS") : List.copyOf(metodos);
+        }
+
+        public List<String> headersOrDefault() {
+            return headers == null || headers.isEmpty()
+                    ? List.of("Authorization", "Content-Type", "X-Correlation-Id")
+                    : List.copyOf(headers);
+        }
+
+        public List<String> headersExpuestosOrDefault() {
+            return headersExpuestos == null || headersExpuestos.isEmpty()
+                    ? List.of("X-Correlation-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining",
+                            "Retry-After")
+                    : List.copyOf(headersExpuestos);
+        }
+
+        public long maxAgeSegundosOrDefault() {
+            return maxAgeSegundos == null ? 3600L : maxAgeSegundos;
+        }
+
+        public boolean permitirCredencialesOrDefault() {
+            return permitirCredenciales != null && permitirCredenciales;
+        }
+    }
+
+    /**
+     * Handshake WebSocket autenticado (FEAT-0008 BR-003/BR-004): roles habilitados, nombre del query
+     * param que transporta el token (los navegadores no pueden enviar {@code Authorization} en el
+     * upgrade) y secreto HS256 compartido con {@code sensor-registry}.
+     */
+    public record WsCfg(List<String> rolesPermitidos, String parametroToken, String jwtSecreto) {
+
+        public List<String> rolesPermitidosOrDefault() {
+            return rolesPermitidos == null || rolesPermitidos.isEmpty()
+                    ? List.of("ADMIN", "VIEWER") : List.copyOf(rolesPermitidos);
+        }
+
+        public String parametroTokenOrDefault() {
+            return parametroToken == null || parametroToken.isBlank() ? "token" : parametroToken.trim();
+        }
+    }
 }
