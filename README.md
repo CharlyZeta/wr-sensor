@@ -72,6 +72,8 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `docs/RUNBOOK.md` | Requisitos, build/test, credenciales dev, cómo correr e integrar |
 | `docs/DECISIONES.md` | Registro de decisiones (ADR) del ciclo SDD-GL |
 | `docs/REGISTRO-SDD.md` | Work items: contracts, estado, criterios y suites de tests |
+| `docs/ESTADO-SDD.md` | **Tablero `/sdd-status`** (contratos, criterios, suites, backlog y cómo verificarlo) |
+| `docs/CHANGELOG.md` | **Changelog del proyecto**: fixes y features con impacto, causa y evidencia |
 | `docs/ESTADO-PROYECTO.md` | Bitácora de avance operativa |
 | `docs/water-monitoring-spec.md` | Spec base del dominio |
 | `contracts/` | Contracts SDD-GL (la fuente de verdad por feature) |
