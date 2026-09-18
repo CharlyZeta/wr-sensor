@@ -515,3 +515,64 @@ a {
 .fila-invalida {
   background: color-mix(in srgb, var(--sev-invalido) 10%, transparent);
 }
+
+/* ---------- alertas en vivo (FEAT-0015) ---------- */
+.badge-no-leidas {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--sev-critical);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.panel-alertas {
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  padding: var(--espacio-3);
+}
+
+.panel-alertas-encabezado {
+  display: flex;
+  align-items: center;
+  gap: var(--espacio-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--espacio-3);
+}
+
+.panel-alertas-encabezado h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.lista-alertas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espacio-1);
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+
+.item-alerta {
+  display: flex;
+  gap: var(--espacio-2);
+  align-items: flex-start;
+  padding: var(--espacio-2);
+  border: 1px solid var(--color-borde);
+  border-left-width: 4px;
+  border-left-color: currentColor;
+  border-radius: var(--radio);
+}
+
+.marca-normaliza {
+  color: var(--sev-normal);
+  font-weight: 600;
+}

@@ -44,9 +44,9 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 94 | 42 | 136 |
-| **Total** | **333** | **120** | **453** |
-| `web/` (SPA) | 37 | — | 37 |
+| `api-gateway` | 99 | 42 | 141 |
+| **Total** | **338** | **120** | **458** |
+| `web/` (SPA) | 51 | — | 51 |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
 > `mvn -o test -Dtest='*IT'` y requieren Docker Desktop (los de `api-gateway` no: usan
@@ -460,6 +460,27 @@ websocat "ws://localhost:8084/ws/sensores/<uuid-del-sensor>?token=$token"
 La ventana de 24 h con frecuencia de 30 s supera el `limit` máximo del histórico (1000), así que el
 SPA **encadena el cursor** hasta cubrir la ventana o llegar a `VITE_SERIE_MAX_PUNTOS`; si trunca, lo
 dice en la leyenda de la serie.
+
+### Alertas en vivo (FEAT-0015)
+
+El feed de alertas confirmadas se alimenta de `WS /ws/alertas?token=` y vive en **una sola conexión
+por pestaña** (la abre el shell, no cada vista):
+
+| Variable | Default | Para qué |
+|---|---|---|
+| `VITE_ALERTAS_MAX` | `200` | tope de entradas del feed en memoria (las más antiguas se descartan) |
+| `VITE_ALERTAS_DEBOUNCE_MS` | `2000` | agrupa una ráfaga de alertas en **una** recarga del resumen |
+
+```powershell
+# probar el feed a mano
+websocat "ws://localhost:8084/ws/alertas?token=$token"
+# → {"sensorId":"…","severidadNueva":"CRITICAL","confirmada":true,"timestamp":"…"}
+```
+
+El feed es **efímero**: las alertas no se persisten (el historial consultable está fuera de alcance),
+así que la UI avisa que se pierden al recargar. Una **normalización** (bajada de severidad) se
+distingue y **no** cuenta como crítica no leída. Al recibir una alerta, el mapa refresca el resumen
+**una vez por ráfaga** (no una vez por alerta) para no agotar el cupo de `lectura`.
 
 ### Servirlo desde el gateway
 

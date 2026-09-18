@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Aviso } from './componentes/Estados'
+import { AlertasPage } from './features/alertas/AlertasPage'
 import { DetallePage } from './features/detalle/DetallePage'
 import { LoginPage } from './features/login/LoginPage'
 import { MapaPage } from './features/mapa/MapaPage'
@@ -32,6 +33,7 @@ export function App(): React.JSX.Element {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<Layout />}>
           <Route path="/mapa" element={<MapaPage />} />
+          <Route path="/alertas" element={<AlertasPage />} />
           <Route path="/sensores/:id" element={<DetallePage />} />
         </Route>
         <Route path="/" element={<Navigate to="/mapa" replace />} />

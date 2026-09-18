@@ -316,6 +316,16 @@ dibuja con `SerieTemporal` (SVG propio, decimado preservando mínimos y máximos
 fuente de verdad accesible**. Si el histórico falla (`429`, red), el detalle conserva la identidad del
 sensor en pantalla y sólo informa el error de la serie.
 
+**Alertas en vivo (FEAT-0015):** `ProveedorAlertas` (en el shell, por encima de las rutas) abre **una
+sola** conexión a `WS /ws/alertas?token=` por pestaña, con backoff con jitter y estado visible. El
+**feed vive en memoria**, deduplicado por (`sensorId`, `timestamp`, `severidadNueva`) y acotado por
+configuración; la UI declara explícitamente que se pierde al recargar (no hay historial en el
+backend). El payload se valida antes de entrar al feed y el nombre del sensor se resuelve contra la
+metadata ya cargada (sin N+1; si falta, se muestra el `id` y se ofrece recargar). Las **ráfagas** se
+agrupan (`VITE_ALERTAS_DEBOUNCE_MS`) y disparan **una** recarga del resumen, para no agotar el cupo de
+`lectura`; sólo los empeoramientos de severidad cuentan como críticas no leídas (una normalización
+no). El anuncio de alertas nuevas usa `aria-live` sin robar el foco.
+
 **Empaquetado (BR-010):** el stage de Node del `Dockerfile` del gateway construye el SPA y lo copia a
 `/app/static/` (`GATEWAY_STATIC_LOCATION=file:/app/static/`), así que no hay que reempaquetar el jar;
 para correr local sin Docker hay un profile opt-in (`mvn -o package -Pcon-spa`) que copia `web/dist`.

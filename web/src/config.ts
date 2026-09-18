@@ -48,6 +48,13 @@ export const config = {
   wsBackoffFactor: entero(import.meta.env.VITE_WS_BACKOFF_FACTOR, 2, 2),
   wsBackoffTopeMs: entero(import.meta.env.VITE_WS_BACKOFF_TOPE_MS, 30_000, 1_000),
   wsMaxIntentos: entero(import.meta.env.VITE_WS_MAX_INTENTOS, 6, 1),
+
+  // ---- alertas en vivo (FEAT-0015) ----
+
+  /** Tope de entradas del feed en memoria (las más antiguas se descartan). */
+  alertasMax: entero(import.meta.env.VITE_ALERTAS_MAX, 200, 10),
+  /** Agrupación de una ráfaga de alertas para no pedir el resumen una vez por alerta. */
+  alertasDebounceMs: entero(import.meta.env.VITE_ALERTAS_DEBOUNCE_MS, 2_000, 100),
 } as const
 
 /** URL absoluta o relativa de un path de la API, respetando `VITE_API_BASE`. */

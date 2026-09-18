@@ -7,6 +7,33 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FEAT-0015] — 2026-09-15 — Alertas en vivo: feed confirmado y refresco del mapa
+
+`contracts/FEAT-0015.md` (29/29 ✅) · parte 3 de 4 de la serie del frontend · **sin cambios de
+backend** (usa `WS /ws/alertas?token=` de FEAT-0012/FEAT-0008).
+Suite: **`web/` 51 tests** (+14) · `api-gateway` +5 (docs).
+
+**Agregado:**
+
+- **Feed de alertas confirmadas** (`BR-001/BR-003/BR-005`): el proveedor vive en el shell, así que hay
+  **una sola conexión por pestaña** (navegar entre el mapa y el detalle no multiplica conexiones ni
+  pierde el feed); deduplicación por (`sensorId`, `timestamp`, `severidadNueva`), orden por timestamp
+  descendente y tope configurable. La UI declara que el historial **no se persiste** (se pierde al
+  recargar) en vez de insinuar lo contrario.
+- **Contador de críticas no leídas** (`BR-006`): sólo suman los empeoramientos de severidad; una
+  **normalización** se marca como tal y no cuenta. Al abrir el feed, el contador se limpia.
+- **Refresco del mapa por ráfaga** (`BR-004`): las alertas de una ráfaga se agrupan
+  (`VITE_ALERTAS_DEBOUNCE_MS`, default 2 s) y disparan **una** recarga del resumen — verificado con un
+  test que emite 5 alertas y afirma que el resumen se pidió una sola vez más.
+- **Resiliencia y accesibilidad** (`BR-002/BR-007/BR-008`, `AF-01/AF-05`): reconexión con backoff y
+  estados visibles conservando el feed; nombre del sensor resuelto contra la metadata ya cargada (sin
+  N+1) con `sensorId` y "recargar sensores" cuando falta; anuncio de alertas nuevas por `aria-live`
+  sin robar el foco; payloads inválidos descartados.
+
+**Infra de tests:** MSW v2 intercepta también los WebSocket, lo que rompía la suite al abrir el feed;
+el setup ahora los exceptúa explícitamente (`onUnhandledRequest`) porque los tests los reemplazan con
+un doble controlable.
+
 ## [FEAT-0014] — 2026-09-15 — Detalle en vivo del sensor: WebSocket de lecturas y serie de 24 h
 
 `contracts/FEAT-0014.md` (29/29 ✅) · parte 2 de 4 de la serie del frontend · **sin cambios de

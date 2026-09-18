@@ -60,9 +60,20 @@ class FakeWebSocket {
     this.readyState = FakeWebSocket.CLOSED
   }
 
-  /** Última instancia creada por el SPA (se usa como `FakeWebSocket.ultima`). */
+  /** Última instancia creada por el SPA (se usa como `FakeWebSocket.deSensor`). */
+  /** Socket del detalle (el shell también abre el de alertas: hay que distinguirlos). */
+  static get deSensor(): FakeWebSocket {
+    const propios = FakeWebSocket.instancias.filter((s) => s.url.includes('/ws/sensores/'))
+    const ultima = propios[propios.length - 1]
+    if (ultima === undefined) {
+      throw new Error('no hay WebSocket de sensor abierto')
+    }
+    return ultima
+  }
+
   static get ultima(): FakeWebSocket {
-    const ultima = FakeWebSocket.instancias[FakeWebSocket.instancias.length - 1]
+    const propios = FakeWebSocket.instancias.filter((s) => s.url.includes('/ws/sensores/'))
+    const ultima = propios[propios.length - 1]
     if (ultima === undefined) {
       throw new Error('no hay WebSocket abierto')
     }
@@ -97,7 +108,7 @@ describe('FEAT-0014 · Main Flow', () => {
     renderDetalle()
 
     expect(await screen.findByRole('heading', { name: /Norte/ })).toBeInTheDocument()
-    const socket = FakeWebSocket.ultima
+    const socket = FakeWebSocket.deSensor
     socket.abrir()
 
     expect(await screen.findByText('En vivo')).toBeInTheDocument()
@@ -117,7 +128,7 @@ describe('FEAT-0014 · Main Flow', () => {
     })
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    const socket = FakeWebSocket.ultima
+    const socket = FakeWebSocket.deSensor
     socket.abrir()
     const antes = pedidosHistorico
 
@@ -139,7 +150,7 @@ describe('FEAT-0014 · Main Flow', () => {
   it('BR-007/AC-009: deduplica por timestamp y mantiene el orden al insertar', async () => {
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    const socket = FakeWebSocket.ultima
+    const socket = FakeWebSocket.deSensor
     socket.abrir()
 
     const repetida = {
@@ -176,13 +187,13 @@ describe('FEAT-0014 · Alternative Flows', () => {
     try {
       renderDetalle()
       await screen.findByRole('heading', { name: /Norte/ })
-      expect(FakeWebSocket.instancias).toHaveLength(1)
+      expect(FakeWebSocket.instancias.filter((s) => s.url.includes("/ws/sensores/"))).toHaveLength(1)
 
-      FakeWebSocket.ultima.cerrar()
+      FakeWebSocket.deSensor.cerrar()
       expect(await screen.findByText(/Reconectando \(intento 1\)/)).toBeInTheDocument()
 
       // el backoff no reintenta inmediatamente
-      expect(FakeWebSocket.instancias).toHaveLength(1)
+      expect(FakeWebSocket.instancias.filter((s) => s.url.includes("/ws/sensores/"))).toHaveLength(1)
       await vi.advanceTimersByTimeAsync(5_000)
       expect(FakeWebSocket.instancias.length).toBeGreaterThanOrEqual(2)
     } finally {
@@ -193,7 +204,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
   it('AF-02/A5: un cierre por autenticación cierra la sesión y no filtra el token en la UI', async () => {
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    FakeWebSocket.ultima.cerrar(1008)
+    FakeWebSocket.deSensor.cerrar(1008)
 
     expect(await screen.findByRole('heading', { name: 'WR-Sensor' })).toBeInTheDocument()
     expect(document.body.textContent ?? '').not.toContain('token-de-prueba')
@@ -209,7 +220,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
       renderDetalle()
       await screen.findByRole('heading', { name: /Norte/ })
 
-      const socket = FakeWebSocket.ultima
+      const socket = FakeWebSocket.deSensor
       expect(socket.url).toContain('/ws/sensores/')
       expect(socket.url).toContain('token=token-de-prueba')
       // la URL con el token no se muestra en el DOM ni se escribe en consola
@@ -241,7 +252,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
     )
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.deSensor.abrir()
 
     expect(await screen.findByText(/histórico se reintenta en 4 s/i)).toBeInTheDocument()
     expect(screen.getByText('En vivo')).toBeInTheDocument()
@@ -270,7 +281,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
   it('AF-07/BR-007: un payload inválido por WS se descarta sin romper la vista', async () => {
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    const socket = FakeWebSocket.ultima
+    const socket = FakeWebSocket.deSensor
     socket.abrir()
 
     socket.emitirCrudo('esto no es json')
@@ -287,13 +298,13 @@ describe('FEAT-0014 · Alternative Flows', () => {
     const usuario = userEvent.setup()
     renderDetalle(sensoresDeEjemplo[0]?.id ?? '')
     await screen.findByRole('heading', { name: /Norte/ })
-    const primera = FakeWebSocket.ultima
+    const primera = FakeWebSocket.deSensor
     primera.abrir()
 
     // navegación por el shell (no hay link directo al mapa en el detalle): se usa el botón del mapa
     await usuario.click(screen.getByRole('link', { name: 'Mapa' }))
     await waitFor(() => expect(primera.readyState).toBe(FakeWebSocket.CLOSED))
-    expect(FakeWebSocket.instancias).toHaveLength(1)
+    expect(FakeWebSocket.instancias.filter((s) => s.url.includes("/ws/sensores/"))).toHaveLength(1)
   })
 })
 

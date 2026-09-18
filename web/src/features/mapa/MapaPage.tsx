@@ -1,5 +1,6 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAlertas } from '../../alertas/ProveedorAlertas'
 import type { SensorResumen } from '../../api/tipos'
 import { Aviso, EstadoCargando, EstadoError, EstadoVacio } from '../../componentes/Estados'
 import { antiguedad } from '../../dominio/formato'
@@ -23,6 +24,18 @@ export function MapaPage(): React.JSX.Element {
 
   const alNoAutenticado = useCallback(() => cerrarSesion('expirada'), [cerrarSesion])
   const resumen = useResumen(token, alNoAutenticado)
+  const { rafagas } = useAlertas()
+
+  // FEAT-0015 BR-004: cada **ráfaga** de alertas (ya agrupada por el proveedor, 2 s) refresca el
+  // resumen una sola vez, así el mapa refleja la severidad nueva sin una request por alerta.
+  const recargar = resumen.recargar
+  const rafagasPrevias = useRef(rafagas)
+  useEffect(() => {
+    if (rafagas !== rafagasPrevias.current) {
+      rafagasPrevias.current = rafagas
+      recargar()
+    }
+  }, [rafagas, recargar])
 
   const abrirDetalle = useCallback(
     (sensor: SensorResumen) => {
