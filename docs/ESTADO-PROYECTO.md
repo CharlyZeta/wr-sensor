@@ -18,16 +18,15 @@
 | `alerting-service` | 🟢 parcial | `services/alerting-service/` — consume `sensor.alertas`, histéresis (subida inmediata, bajada confirmada por ventana), push WebSocket `/ws/alertas` | `FEAT-0012` (RESOLVED) |
 | `query-api` | 🟢 parcial | `services/query-api/` — histórico keyset, `/actual` (última lectura), `WS /ws/sensores/{id}` tiempo real (consume `sensor.lecturas`) + **`GET /api/sensores/resumen`** para el mapa (FEAT-0008) | `FEAT-0013`, `FEAT-0008` (RESOLVED) |
 | `api-gateway` | 🟢 parcial | `services/api-gateway/` — punto de entrada único: tabla de rutas declarativa, rate limiting por clase\|IP, correlación, túnel WS + **CORS configurable y WS autenticado** (FEAT-0008) | `FEAT-0007`, `FEAT-0008` (RESOLVED) |
-| Frontend (`web/`: React + TypeScript + Vite + mapa Leaflet) | 🟡 **en Gate** | 4 contracts abiertos 2026-09-14, división por capacidad funcional: núcleo+mapa, detalle en vivo, alertas, administración/demo. Código: aún no existe (`web/` se crea en `FEAT-0009`) | `FEAT-0009`, `FEAT-0014`, `FEAT-0015`, `FEAT-0016` (DRAFT/GATE) |
+| Frontend (`web/`: React + TypeScript + Vite + mapa Leaflet) | 🟢 **completo** | `web/` — SPA del operador: sesión con JWT, mapa con el resumen, detalle en vivo por WS + serie de 24 h, feed de alertas, CRUD (ADMIN) y panel de demo. Servido por el gateway (mismo origen). 63 tests unit + 9 e2e | `FEAT-0009`, `FEAT-0014`, `FEAT-0015`, `FEAT-0016` (RESOLVED) |
 | Infra local (Docker Compose de los 6 servicios) | 🟢 parcial | `docker-compose.yml` (+ `docker-compose.dev.yml`) con los 6 servicios, Postgres+TimescaleDB, RabbitMQ; sólo el gateway publica puerto | — |
 
-**Conclusión:** el proyecto sigue en ~85%. **Backend completo y con entrada única**: pipeline de
-datos (`data-simulator` → `ingestion-service` → `alerting-service`), capa de consulta (`query-api`)
-y `api-gateway` con rate limiting, CORS y WebSocket autenticado. **Todos los habilitadores del
-frontend están cerrados** (`FEAT-0008`) y el **SPA ya está especificado en 4 contracts en Gate**
-(`FEAT-0009` núcleo+mapa+hosting → `FEAT-0014` detalle en vivo → `FEAT-0015` alertas →
-`FEAT-0016` administración/demo): lo único que falta del alcance v1 es **ejecutar esa serie** y, para
-después, los agregados de TimescaleDB (Fase C).
+**Conclusión:** el proyecto está en ~95%. **Backend completo y con entrada única**: pipeline de
+datos (`data-simulator` → `ingestion-service` → `alerting-service`), capa de consulta (`query-api`) y
+`api-gateway` con rate limiting, CORS, WebSocket autenticado y headers de seguridad. **La serie del
+frontend está cerrada completa** (`FEAT-0009` núcleo+mapa+hosting → `FEAT-0014` detalle en vivo →
+`FEAT-0015` alertas → `FEAT-0016` administración/demo), más `FIX-0008` de seguridad. Lo que queda del
+alcance v1 son los agregados de TimescaleDB y el historial de alertas (Fase C).
 
 ---
 
@@ -173,6 +172,58 @@ simulador fuera del gateway, Leaflet + Fase A para el SPA).
 - **Evidencia**: `contracts/FEAT-0008.md` (31/31 ✅), ADR-0019, suites `api-gateway` 68+29 y
   `query-api` 33+8 (414 tests verdes en total).
 
+### 2n. `FIX-0008` (RESOLVED 2026-09-15) — endurecimiento del punto de entrada
+
+Origen: **revisión de seguridad** previa a servir el SPA desde el gateway (delegada a un subagente con
+acceso de sólo lectura). Encontró 7 hallazgos; este fix cerró los tres del gateway.
+
+- **S1 (alto)**: `docker-compose.yml` no le pasaba `AUTH_JWT_SECRET` al `api-gateway`, así que caía al
+  default de desarrollo —**público en el repo**— mientras el registry usaba el real. Como el gateway
+  valida el JWT del handshake WS, en un despliegue con el secreto rotado **cualquiera podía forjar un
+  token `ADMIN`/`VIEWER`** y abrir la telemetría y las alertas.
+- **S3**: **cero headers de seguridad** en todo el repositorio, justo cuando el token vive en
+  `sessionStorage` (sin segunda línea de defensa frente a XSS/clickjacking).
+- **S2/A6**: el catch-all del router impedía servir el SPA, y el fallback ingenuo habría roto el
+  contrato de la API (devolviendo HTML a un asset inexistente).
+- **Solución**: secreto propagado + **fail-fast** fuera de perfiles de desarrollo; `FiltroSeguridad`
+  con CSP (`script-src 'self'`, sin `unsafe-inline`/`unsafe-eval`), `nosniff`, `Referrer-Policy`,
+  `X-Frame-Options`, `Permissions-Policy`, CORP y HSTS condicional, **sin permitir que el downstream
+  los pise**; `ServidorSpa` con resolución contenida (rechaza `..`/`%2e%2e`/rutas absolutas), lista
+  explícita de rutas de cliente, `404` para assets inexistentes, prefijos reservados `/api` y `/ws`, y
+  caché `no-store`/inmutable.
+- **Evidencia**: `contracts/FIX-0008.md` (24/24 ✅), ADR-0020, informe completo en
+  `.sdd/runs/FIX-0008-20260915-120000.md`, suites `api-gateway` 104 unit + 42 IT.
+
+### 2o. `FEAT-0009..FEAT-0016` (RESOLVED 2026-09-15) — serie del frontend (SPA `web/`)
+
+Origen: el humano pidió dividir el frontend en **partes lógicas funcionales** (aprobado 2026-09-14) y
+luego ejecutarlas ("termina las tareas pendientes… código, test, seguridad, documentación"). Los
+cuatro contracts son **sólo frontend**: no cambiaron el backend (el contrato de los servicios cerró en
+`FEAT-0008`).
+
+| Parte | Contract | Alcance | Criterios | Evidencia |
+|---|---|---|---|---|
+| 1 | `FEAT-0009` | sesión (`sessionStorage` + expiración + cierre atómico), shell/guard, cliente API (errores por `code`, `429`/`Retry-After`, correlación), **mapa Leaflet** con `GET /api/sensores/resumen`, y **hosting del SPA desde el gateway** | 32/32 ✅ | ADR-0021 · `web/` 22 tests · `FEAT0009HostingIT` 5 + `FEAT0009DocsTest` 5 |
+| 2 | `FEAT-0014` | detalle en vivo: `WS /ws/sensores/{id}?token=` (una conexión por vista, backoff con jitter, dedupe) + serie de 24 h con histórico keyset + tabla accesible | 29/29 ✅ | `web/` 15 tests · `FEAT0014DocsTest` 5 |
+| 3 | `FEAT-0015` | alertas en vivo: `WS /ws/alertas?token=` (una conexión por pestaña), feed con dedupe y tope, contador de críticas no leídas y **refresco del mapa por ráfaga** | 29/29 ✅ | `web/` 14 tests · `FEAT0015DocsTest` 5 |
+| 4 | `FEAT-0016` | administración (CRUD ADMIN con errores por `code`, baja lógica confirmada) y panel de demo configurable | 31/31 ✅ | `web/` 12 tests · `FEAT0016DocsTest` 5 |
+
+- **Stack**: Vite 7 + React 19 + TypeScript estricto en `web/`; CSS propio con tokens (una única
+  fuente de verdad de la severidad); react-router + hooks sobre `fetch`; Vitest + RTL + MSW + **9 e2e
+  de Playwright** contra el build real; el dev usa proxy de Vite (sin CORS, mismo origen que
+  producción).
+- **Seguridad del SPA**: token sólo en `sessionStorage` (nunca `localStorage`, cookies ni URL), datos
+  del backend tratados como no confiables (UUID, coordenadas y severidad validados; todo como texto;
+  popups de Leaflet con **nodos del DOM**, no HTML), ESLint **prohíbe** `dangerouslySetInnerHTML`/
+  `innerHTML`/`console.*`, y una sola conexión por pestaña en el feed de alertas.
+- **Bugs reales encontrados por los Loops**: `/ws/**` sin declarar devolvía el índice del SPA (200
+  HTML); un fallo del histórico borraba la metadata del sensor en el detalle (corregido con
+  `Promise.allSettled`); dos tests intermitentes por temporizadores de jsdom compartidos (doble de
+  WebSocket unificado + suites serializadas) y una aserción de `401 → logout` que esperaba el mapa
+  (que con un 401 nunca aparece).
+- **Evidencia**: los 4 contracts RESOLVED, ADR-0021, auditorías en
+  `.sdd/runs/FEAT-0009-*.md` … `FEAT-0016-*.md`, y `web/` 63 unit + 9 e2e verdes.
+
 ### 2l. `FIX-0007` (RESOLVED 2026-09-14) — resiliencia del lookup de config de sensores
 
 Origen: `docs/FIX-0007-circuit-breaker.md` (backlog), promocionado a `contracts/FIX-0007.md` con
@@ -310,31 +361,33 @@ Cada fila es candidato a un nuevo Contract (`/sdd-feature` salvo las marcadas `/
 | ID | Servicio | Alcance del Contract | Estado |
 |---|---|---|---|
 | `FEAT-0013` | `query-api` | histórico keyset, `/actual`, `WS /ws/sensores/{id}` | ✅ RESOLVED (2026-09-09) |
-| `FEAT-0009` | `web/` (SPA) | núcleo: sesión, shell, cliente API, **mapa** (`GET /api/sensores/resumen`) y **hosting desde el gateway** (32 criterios) | 🟡 **en Gate** |
-| `FEAT-0014` | `web/` (SPA) | detalle en vivo: `WS /ws/sensores/{id}?token=` + serie de 24 h (histórico keyset, 29 criterios) | 🟡 **en Gate** |
-| `FEAT-0015` | `web/` (SPA) | alertas en vivo: `WS /ws/alertas?token=`, feed, contador y refresco del mapa con debounce (29 criterios) | 🟡 **en Gate** |
-| `FEAT-0016` | `web/` (SPA) | administración (CRUD ADMIN con errores por `code`) y panel de demo del simulador (31 criterios) | 🟡 **en Gate** |
+| `FEAT-0009` | `web/` (SPA) | núcleo: sesión, shell, cliente API, **mapa** (`GET /api/sensores/resumen`) y **hosting desde el gateway** (32 criterios) | ✅ RESOLVED (2026-09-15) |
+| `FEAT-0014` | `web/` (SPA) | detalle en vivo: `WS /ws/sensores/{id}?token=` + serie de 24 h (histórico keyset, 29 criterios) | ✅ RESOLVED (2026-09-15) |
+| `FEAT-0015` | `web/` (SPA) | alertas en vivo: `WS /ws/alertas?token=`, feed, contador y refresco del mapa con debounce (29 criterios) | ✅ RESOLVED (2026-09-15) |
+| `FEAT-0016` | `web/` (SPA) | administración (CRUD ADMIN con errores por `code`) y panel de demo del simulador (31 criterios) | ✅ RESOLVED (2026-09-15) |
 | — | `web/` (SPA) | Fase C: agregados/continuous aggregates, export CSV, historial de alertas consultable | sin contract (roadmap) |
 
 ### 3c. Transversal / infra
 | Ítem | Qué falta |
 |---|---|
-| `docker-compose.yml` | ✅ CREADO (2026-09-09): 6 servicios (incluye `api-gateway`) + Postgres + TimescaleDB + Redis + RabbitMQ; `docker compose up`. Sólo el gateway publica puerto; `docker-compose.dev.yml` habilita el acceso directo para debug. **Pendiente (FEAT-0009):** la imagen del gateway incluye el SPA construido (stage de Node) |
-| `application.yml` de cada servicio | ✅ reintentos/DLQ configurables (`messaging.retry.*`, `messaging.dead-letter.exchange`) — stack exige "nunca hardcodeados" |
+| `docker-compose.yml` | ✅ 6 servicios (incluye `api-gateway`) + Postgres + TimescaleDB + Redis + RabbitMQ; `docker compose up`. Sólo el gateway publica puerto; `docker-compose.dev.yml` para debug. ✅ La imagen del gateway **incluye el SPA construido** (stage de Node que corre `npm ci` + `npm run build` y lo monta en `/app/static/`, FEAT-0009 BR-010) |
+| `application.yml` de cada servicio | ✅ reintentos/DLQ configurables (`messaging.retry.*`, `messaging.dead-letter.exchange`) — stack exige "nunca hardcodeados"; el SPA tiene sus `VITE_*` documentadas en `web/.env.example` |
 | Datos semilla | 6 sensores reales Paraná+Salado/Santa Fe (spec §9.5) |
 | Manifiestos K8s | solo documentación futura (v1 no se implementan) |
 | Parent Maven multi-módulo | ✅ CREADO (`services/pom.xml`, 6 módulos) + Dockerfiles por servicio. El SPA **no** es módulo Maven (`web/` con su propio `package.json`, build por npm; ver `FEAT-0009` BR-010) |
+| Suite del SPA | ✅ `web/`: 63 tests (Vitest + RTL + MSW) + 9 e2e (Playwright contra el build real, sin Docker). Se corren con `npm test` / `npm run e2e` |
 
 ---
 
 ## 4. Cómo continuar (siguiente sesión)
 
-1. Arrancar el orquestador (`CLAUDE.md` rige). Independiente del Work Item,
-   leer `contracts/[ID].md`; si no existe → `/sdd-feature` (o `/sdd-fix`) para crearlo.
-2. **Orden lógico de dependencias del frontend** (serie abierta 2026-09-14, los 4 en Gate):
-   `FEAT-0009` (núcleo + mapa + hosting; **base de los otros tres**) → `FEAT-0014` (detalle en vivo)
-   y `FEAT-0015` (alertas) — independientes entre sí → `FEAT-0016` (administración y demo).
-   Para ejecutar cualquiera: aprobar su Gate (`Status: APPROVED` + `Mode: LOOP`).
+1. Arrancar el orquestador (`CLAUDE.md` rige). **No hay ningún contract abierto**: para trabajo nuevo
+   se crea con `/sdd-feature` (o `/sdd-fix`) y **el humano** aprueba el Gate antes del Loop.
+2. **Serie del frontend: cerrada completa** (2026-09-15) — `FEAT-0009` (núcleo + mapa + hosting) →
+   `FEAT-0014` (detalle en vivo) → `FEAT-0015` (alertas) → `FEAT-0016` (administración y demo), más
+   `FIX-0008` (seguridad del punto de entrada). Los candidatos siguientes son la **Fase C**
+   (agregados/continuous aggregates, export CSV, historial de alertas) y los escenarios e2e ampliados.
+   Para ejecutarlos: crearlos con `/sdd-feature` y aprobar su Gate (`Status: APPROVED` + `Mode: LOOP`).
 3. Frame SDD-GL: actualizado a v0.3.0 (protocol EXPRESS/STRICT, Glass Box en
    `.sdd/runs/`, AGENTS.md + `.agents/skills`, presets, mcp, CHANGELOG). Los agentes
    `.claude/agents/*` usan `model: sonnet` (v0.3.0 del repo).
@@ -373,13 +426,14 @@ Documentos `docs/FIX-0002-schema-versionado-lecturas.md`,
 >   default 300/60 s, WS 30/60 s) y auth de WebSocket fuera de alcance (brecha documentada).
 > - **Pendientes reales del backlog**: ninguno. `docs/FIX-0007-circuit-breaker.md` →
 >   **PROMOCIONADO como `contracts/FIX-0007.md`** (RESOLVED 2026-09-14).
-> - **En curso (Gate)**: la **serie del frontend**, abierta el 2026-09-14 y dividida en 4 partes por
+> - **Serie del frontend: CERRADA (2026-09-15)**, abierta el 2026-09-14 y dividida en 4 partes por
 >   capacidad funcional (división aprobada por el humano): `contracts/FEAT-0009.md` (SPA núcleo:
->   sesión, shell, mapa y hosting desde el gateway, Gate STRICT, 32 criterios), `contracts/FEAT-0014.md`
->   (detalle en vivo: WS de lecturas + serie de 24 h, EXPRESS, 29), `contracts/FEAT-0015.md` (alertas
->   en vivo: feed + refresco del mapa, EXPRESS, 29) y `contracts/FEAT-0016.md` (administración y demo:
->   CRUD ADMIN + panel del simulador, STRICT, 31). **Ninguna cambia el backend.** Esperan el HO-Gate
->   que habilita el Loop de la que se ejecute primero (recomendado: `FEAT-0009`).
+>   sesión, shell, mapa y hosting desde el gateway, STRICT, 32 criterios ✅), `contracts/FEAT-0014.md`
+>   (detalle en vivo: WS de lecturas + serie de 24 h, EXPRESS, 29 ✅), `contracts/FEAT-0015.md` (alertas
+>   en vivo: feed + refresco del mapa, EXPRESS, 29 ✅) y `contracts/FEAT-0016.md` (administración y demo:
+>   CRUD ADMIN + panel del simulador, STRICT, 31 ✅). **Ninguna cambió el backend.** El HO-Gate se dio
+>   por la orden de ejecución del humano; los resultados esperan su validación (ver `docs/ESTADO-SDD.md`).
+>   **No queda ningún work item abierto.**
 > - **Handoff**: `docs/CONTINUIDAD.md` resume estado, proceso, comandos, entorno y trampas para
 >   retomar el proyecto sin contexto previo.
 > - `docs/FIX-0002-schema-versionado-lecturas.md` → **PROMOCIONADO como `contracts/FIX-0006.md`**
