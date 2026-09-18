@@ -1,0 +1,51 @@
+/**
+ * Tokens de diseño del SPA (FEAT-0009 BR-007/BR-008).
+ *
+ * Los colores de severidad viven acá y se consumen **sólo** a través del catálogo de
+ * `src/dominio/severidad.ts` (una única fuente de verdad). La paleta está elegida para cumplir
+ * contraste AA sobre fondo claro, y cada severidad tiene además símbolo y etiqueta: la información
+ * nunca depende sólo del color (accesibilidad).
+ */
+:root {
+  --color-fondo: #f6f7f9;
+  --color-superficie: #ffffff;
+  --color-borde: #d7dbe0;
+  --color-texto: #1f2328;
+  --color-texto-suave: #57606a;
+  --color-primario: #0b5cad;
+  --color-primario-texto: #ffffff;
+  --color-foco: #0b5cad;
+
+  --sev-normal: #1a7f37;
+  --sev-warning: #b26a00;
+  --sev-critical: #b3261e;
+  --sev-sin-datos: #5f6368;
+  --sev-invalido: #6a1b9a;
+
+  --radio: 8px;
+  --espacio-1: 4px;
+  --espacio-2: 8px;
+  --espacio-3: 12px;
+  --espacio-4: 16px;
+  --espacio-5: 24px;
+  --sombra: 0 1px 3px rgba(31, 35, 40, 0.12);
+  --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-fondo: #14171a;
+    --color-superficie: #1c2024;
+    --color-borde: #30363d;
+    --color-texto: #e6edf3;
+    --color-texto-suave: #9aa4b2;
+    --color-primario: #4c9aff;
+    --color-primario-texto: #0b1220;
+
+    --sev-normal: #3fb950;
+    --sev-warning: #d29922;
+    --sev-critical: #f85149;
+    --sev-sin-datos: #8b949e;
+    --sev-invalido: #bc8cff;
+  }
+}
