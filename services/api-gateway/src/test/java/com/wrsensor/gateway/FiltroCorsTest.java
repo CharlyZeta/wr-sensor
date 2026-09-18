@@ -60,7 +60,7 @@ class FiltroCorsTest {
     }
 
     private static GatewayProperties props(List<String> origenes) {
-        return new GatewayProperties(List.of(), null, corsCfg(origenes), null);
+        return new GatewayProperties(List.of(), null, corsCfg(origenes), null, null);
     }
 
     /** Corre CORS y después el rate limit, como en el arranque real (CORS primero). */
@@ -271,7 +271,7 @@ class FiltroCorsTest {
     void br001_credencialesConfigurables() {
         GatewayProperties props = new GatewayProperties(List.of(), null,
                 new GatewayProperties.CorsCfg(List.of(ORIGEN_DEV), null, null, null, null, true),
-                null);
+                null, null);
         FiltroCors cors = new FiltroCors(props);
         MockServerWebExchange ex = get(ORIGEN_DEV);
         cors.filter(ex, e -> Mono.empty()).block();

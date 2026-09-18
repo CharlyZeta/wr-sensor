@@ -23,6 +23,9 @@ import java.util.Map;
 @EnableConfigurationProperties(GatewayProperties.class)
 public class GatewayConfig {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(GatewayConfig.class);
+
     /** Clases de límite por nombre (BR-004): debe existir al menos {@code default}. */
     @Bean
     Map<String, Limite> clasesLimite(GatewayProperties props) {
@@ -80,10 +83,33 @@ public class GatewayConfig {
     /**
      * Verificador HS256 del handshake WS (FEAT-0008 BR-003). Fail-fast: sin secreto configurado el
      * gateway no arranca en vez de aceptar upgrades sin poder validarlos.
+     *
+     * <p>FIX-0008 BR-002: fuera de los perfiles de desarrollo, arrancar con el secreto de desarrollo
+     * (público en el repo) permitiría **forjar tokens** y abrir los WebSocket sin credenciales, así
+     * que el arranque falla. En desarrollo se acepta con WARN para no romper el flujo local.</p>
      */
     @Bean
-    com.wrsensor.gateway.domain.VerificadorJwt verificadorJwt(GatewayProperties props) {
-        String secreto = props.ws() == null ? null : props.ws().jwtSecreto();
+    com.wrsensor.gateway.domain.VerificadorJwt verificadorJwt(GatewayProperties props,
+                                                             org.springframework.core.env.Environment entorno) {
+        GatewayProperties.WsCfg ws = props.ws() == null
+                ? new GatewayProperties.WsCfg(null, null, null) : props.ws();
+        String secreto = ws.jwtSecreto();
+        GatewayProperties.SeguridadCfg seg = props.seguridad() == null
+                ? new GatewayProperties.SeguridadCfg(null, null, null, null, null, null, null, null, null)
+                : props.seguridad();
+        boolean desarrollo = java.util.Arrays.stream(entorno.getActiveProfiles())
+                .anyMatch(p -> seg.perfilesDesarrolloOrDefault().contains(p));
+        if (GatewayProperties.SeguridadCfg.SECRETO_DESARROLLO.equals(secreto)) {
+            if (desarrollo || entorno.getActiveProfiles().length == 0) {
+                log.warn("[gateway] usando el SECRETO DE DESARROLLO para validar el handshake WS: "
+                        + "los tokens son forjables con el valor del repositorio. Configurar "
+                        + "AUTH_JWT_SECRET en cualquier entorno real.");
+            } else {
+                throw new IllegalStateException("gateway.ws.jwt-secreto usa el secreto de desarrollo "
+                        + "con perfiles activos " + java.util.Arrays.toString(entorno.getActiveProfiles())
+                        + ": configurar AUTH_JWT_SECRET (FIX-0008 BR-002)");
+            }
+        }
         return new com.wrsensor.gateway.domain.VerificadorJwt(secreto);
     }
 

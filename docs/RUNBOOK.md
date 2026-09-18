@@ -44,8 +44,8 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 68 | 29 | 97 |
-| **Total** | **307** | **107** | **414** |
+| `api-gateway` | 84 | 37 | 121 |
+| **Total** | **323** | **115** | **438** |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
 > `mvn -o test -Dtest='*IT'` y requieren Docker Desktop (los de `api-gateway` no: usan
@@ -315,7 +315,87 @@ Configuración (`services/query-api/src/main/resources/application.yml`, prefijo
 Si el registry no responde, el endpoint devuelve `502 REGISTRY_UNAVAILABLE` (nunca una lista
 parcial). El resumen es la fuente del mapa y del listado del SPA (`FEAT-0009`).
 
-## 9. Orquestación SDD-GL
+## 9. Seguridad del punto de entrada (FIX-0008)
+
+Todo el endurecimiento vive en el `api-gateway` (es el único punto de entrada publicado y el host del
+SPA) y es **configuración**, no código: `gateway.seguridad.*` en
+`services/api-gateway/src/main/resources/application.yml`.
+
+### Secreto del handshake WebSocket (hallazgo S1 de la revisión de seguridad)
+
+El gateway valida el JWT del upgrade WS, así que **necesita el mismo `AUTH_JWT_SECRET`** que
+`sensor-registry`. Antes no se le pasaba: caía al default de desarrollo (público en el repo) y
+cualquiera podía **forjar un token `ADMIN`/`VIEWER`** y abrir la telemetría y las alertas.
+
+```powershell
+# 1) el secreto debe llegar al gateway (y ser el mismo que usa el registry)
+docker compose config | Select-String 'AUTH_JWT_SECRET'
+docker compose exec api-gateway printenv AUTH_JWT_SECRET
+
+# 2) un token firmado con el secreto de desarrollo NO debe abrir el WS en un entorno real
+#    (rotar AUTH_JWT_SECRET y reintentar el handshake: 401 UNAUTHENTICATED)
+curl.exe -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" `
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" "http://localhost:8084/ws/alertas?token=$forjado"
+```
+
+**Fail-fast:** con un perfil que no sea de desarrollo (`gateway.seguridad.perfiles-desarrollo`, por
+default `dev`/`local`/`test`) el gateway **no arranca** si el secreto sigue siendo el de desarrollo;
+en desarrollo arranca con un `WARN` que lo dice explícitamente (para no romper `docker compose up` sin
+configurar nada).
+
+### Headers de seguridad y CSP
+
+El gateway aplica los headers a **toda** respuesta (API, SPA y errores) y **descarta** los que mande
+el downstream, así que aparecen una sola vez y no pueden ser pisados por un servicio comprometido:
+
+| Header | Default | Config |
+|---|---|---|
+| `Content-Security-Policy` | `script-src 'self'` (sin `unsafe-inline`/`unsafe-eval`), `img-src` con los tiles de OSM, `connect-src 'self' ws: wss:`, `object-src 'none'`, `frame-ancestors 'none'` | `gateway.seguridad.content-security-policy` / `GATEWAY_CSP` |
+| `X-Content-Type-Options` | `nosniff` | fijo |
+| `Referrer-Policy` | `no-referrer` (los tiles de terceros no reciben la URL del panel) | fijo |
+| `X-Frame-Options` | `DENY` (anti clickjacking del panel) | fijo |
+| `Permissions-Policy` | `geolocation=(), camera=(), microphone=()` | `gateway.seguridad.permisos-politica` |
+| `Cross-Origin-Resource-Policy` | `same-origin` | fijo |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` **sólo** si la request llegó por HTTPS (`X-Forwarded-Proto: https`) | `gateway.seguridad.hsts` / `GATEWAY_HSTS` |
+
+La CSP es la segunda línea de defensa del token (que vive en `sessionStorage`): si alguien lograra
+inyectar un `<script>` inline, la CSP lo bloquea. `style-src` sí permite `'unsafe-inline'` porque
+Leaflet manipula estilos; es una excepción **documentada** y no habilita scripts.
+
+```powershell
+# verificar headers (en PowerShell usar curl.exe: `curl` es alias de Invoke-WebRequest)
+curl.exe -sS -D - -o NUL http://localhost:8084/
+curl.exe -sS -D - -o NUL http://localhost:8084/api/sensores/resumen -H "Authorization: Bearer $token"
+# HSTS sólo con TLS adelante:
+curl.exe -sS -D - -o NUL -H "X-Forwarded-Proto: https" http://localhost:8084/
+```
+
+### Hosting del SPA y contrato de la API (hallazgo S2/A6)
+
+El gateway sirve el SPA desde `classpath:/static/` (`gateway.seguridad.static-location`) con una regla
+explícita de resolución:
+
+| Request | Respuesta |
+|---|---|
+| `/`, `/login`, `/mapa`, `/sensores/**` (configurables) | `200 text/html` del índice, `Cache-Control: no-store` |
+| `/assets/<nombre>-<hash>.<ext>` existente | `200` con `Cache-Control: public, max-age=31536000, immutable` |
+| `/assets/noexiste.js` (o cualquier path con extensión que no existe) | `404 ROUTE_NOT_FOUND` (**nunca** el índice) |
+| `/api/**` no declarado | `404 ROUTE_NOT_FOUND` en JSON (contrato de FEAT-0007 intacto) |
+| `/ws/**` declarado sin upgrade | `426 WS_UPGRADE_REQUIRED`; sin token válido → `401 UNAUTHENTICATED` |
+| `/..%2f..%2fapplication.yml`, `/WEB-INF/web.xml` | `404`, sin leer nada fuera de `static/` |
+
+```powershell
+curl.exe -i http://localhost:8084/                       # 200 text/html
+curl.exe -i http://localhost:8084/sensores/abc           # 200 text/html (ruta de cliente)
+curl.exe -i http://localhost:8084/api/loquesea           # 404 JSON ROUTE_NOT_FOUND
+curl.exe -i http://localhost:8084/assets/noexiste.js     # 404 (nunca 200 con HTML)
+curl.exe -i "http://localhost:8084/..%2f..%2fapplication.yml"
+```
+
+> El SPA **construido** se copia a `services/api-gateway/src/main/resources/static/` (carpeta generada,
+> no versionada). Sin build, esas rutas responden `404` y el gateway lo registra en el log.
+
+## 10. Orquestación SDD-GL
 
 - Orquestador: `CLAUDE.md` (Claude Code) / `AGENTS.md` (Antigravity). Arranque: leer
   `contracts/[ID].md` → DRAFT/GATE → `sdd-gate`; APPROVED/LOOP → `sdd-loop`;

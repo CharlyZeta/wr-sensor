@@ -25,11 +25,22 @@ public final class RespuestasGateway {
             "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te",
             "trailer", "transfer-encoding", "upgrade", "host", "content-length");
 
+    /**
+     * Headers de seguridad que fija el gateway (FIX-0008 BR-003): se descartan los que venga del
+     * downstream para que el valor configurado sea el único que ve el cliente (nunca duplicado y
+     * nunca sobrescrito por un servicio comprometido).
+     */
+    private static final Set<String> SEGURIDAD = Set.of(
+            "content-security-policy", "x-content-type-options", "referrer-policy", "x-frame-options",
+            "permissions-policy", "cross-origin-resource-policy", "cross-origin-opener-policy",
+            "strict-transport-security");
+
     private RespuestasGateway() {
     }
 
     public static boolean propagable(String nombreHeader) {
-        return !NO_PROPAGAR.contains(nombreHeader.toLowerCase(Locale.ROOT));
+        String h = nombreHeader.toLowerCase(Locale.ROOT);
+        return !NO_PROPAGAR.contains(h) && !SEGURIDAD.contains(h);
     }
 
     /** Respuesta de error {@code {"code","message"}} con el código de correlación (BR-008/BR-009). */

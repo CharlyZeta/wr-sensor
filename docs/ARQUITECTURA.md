@@ -59,10 +59,16 @@ mientras el resto de `/api/sensores/**` va al registry. Cualquier path no declar
 `404 ROUTE_NOT_FOUND` sin fallback (el **simulador** sigue fuera del gateway: la demo usa
 `docker-compose.dev.yml`).
 
-### Cadena de filtros del gateway (FEAT-0008)
+### Cadena de filtros del gateway (FEAT-0008 + FIX-0008)
 
 ```
-request ─▶ FiltroCors (HIGHEST_PRECEDENCE)
+request ─▶ FiltroSeguridad (HIGHEST_PRECEDENCE)
+             │  · CSP, X-Content-Type-Options, Referrer-Policy, X-Frame-Options,
+             │    Permissions-Policy, CORP y HSTS (sólo si llegó por HTTPS)
+             │  · escribe los headers ANTES de delegar ⇒ salen en TODA respuesta,
+             │    incluidas las que cortan los filtros siguientes
+             ▼
+           FiltroCors
              │  · sin Origin, o Origin propio ⇒ pasa sin headers (no es CORS)
              │  · preflight de origen permitido ⇒ 204 + headers, FIN (sin cupo, sin downstream)
              │  · origen cruzado no permitido ⇒ 403 ORIGIN_NOT_ALLOWED sin headers Access-Control-*
@@ -71,8 +77,28 @@ request ─▶ FiltroCors (HIGHEST_PRECEDENCE)
              ▼
            FiltroRateLimit (+20)    → token bucket por clase|IP ⇒ 429 + Retry-After
              ▼
-           RouterFunction           → ManejadorRuta (REST) | ManejadorWs (túnel WS) | 404
+           RouterFunction           → ManejadorRuta (REST) | ManejadorWs (túnel WS)
+                                    | /api/** no declarado ⇒ 404 ROUTE_NOT_FOUND (JSON)
+                                    | ServidorSpa ⇒ estáticos + índice del SPA
 ```
+
+### Hosting del SPA y contrato de la API (FIX-0008)
+
+El SPA se sirve desde `classpath:/static/` del gateway (`gateway.seguridad.static-location`), con el
+build de Vite copiado en el empaquetado. La resolución es **contenida** (nunca sale de `static/`) y el
+**contrato de la API queda intacto**:
+
+| Request | Respuesta | Por qué |
+|---|---|---|
+| `/`, `/login`, `/mapa`, `/sensores/**` | `200 text/html` (índice, `no-store`) | rutas del cliente: las resuelve el router del SPA |
+| `/assets/<nombre>-<hash>.<ext>` | `200` + `Cache-Control` inmutable | assets versionados por hash de Vite |
+| asset inexistente (con extensión) | `404 ROUTE_NOT_FOUND` | nunca `200` con HTML para un `<script>` roto |
+| `/api/**` no declarado | `404 ROUTE_NOT_FOUND` (JSON) | contrato de FEAT-0007 (BR-008) intacto |
+| `/ws/**` declarado sin upgrade | `426 WS_UPGRADE_REQUIRED` / `401` sin token | FEAT-0008 BR-003 |
+| `/..%2f..%2fapplication.yml`, `/WEB-INF/web.xml` | `404` | traversal rechazado antes de tocar el disco |
+
+Los prefijos `/api/**` y `/ws/**` son **reservados**: aunque el router los deje pasar, el servidor del
+SPA jamás devuelve el índice para ellos (defensa en profundidad). Ver ADR-0020 y RUNBOOK §9.
 
 ### Autenticación del handshake WebSocket (FEAT-0008)
 

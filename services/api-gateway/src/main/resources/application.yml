@@ -95,6 +95,22 @@ gateway:
     parametro-token: token
     jwt-secreto: ${AUTH_JWT_SECRET:wrsensor-dev-secret-2026-no-usar-en-prod}
 
+  # FIX-0008 BR-003..BR-008: endurecimiento del punto de entrada (headers de seguridad, CSP, rutas
+  # del SPA y cache de estaticos). Todo configurable; el default de la CSP no permite unsafe-inline
+  # ni unsafe-eval en script-src (ese es el vector que robaria el token de la sesion).
+  seguridad:
+    perfiles-desarrollo: [dev, local, test]
+    # orígenes de tiles permitidos en img-src: ajustar si se cambia de proveedor (nunca "*").
+    # Va entre comillas dobles porque la CSP contiene comillas simples ('self') y punto y coma.
+    content-security-policy: "${GATEWAY_CSP:default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org; font-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'}"
+    permisos-politica: geolocation=(), camera=(), microphone=()
+    rutas-cliente: [/login, /mapa, /sensores]
+    static-location: static/
+    cache-assets-segundos: ${GATEWAY_CACHE_ASSETS:31536000}
+    cache-estaticos-segundos: ${GATEWAY_CACHE_ESTATICOS:3600}
+    hsts: ${GATEWAY_HSTS:true}
+    hsts-max-age-segundos: ${GATEWAY_HSTS_MAX_AGE:31536000}
+
 logging:
   level:
     com.wrsensor.gateway: INFO

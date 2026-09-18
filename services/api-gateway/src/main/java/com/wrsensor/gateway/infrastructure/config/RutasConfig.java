@@ -68,11 +68,22 @@ public class RutasConfig {
             }
         }
 
-        // catch-all: ruta no declarada → 404 ROUTE_NOT_FOUND (sin fallback a un destino)
-        builder = builder.route(RequestPredicates.path("/**"), request ->
+        // catch-all de la API: ruta no declarada → 404 ROUTE_NOT_FOUND (sin fallback a un destino).
+        // Se registra ANTES del handler del SPA para que el fallback de rutas del cliente nunca
+        // pueda devolver HTML a un path de la API (FIX-0008 BR-006).
+        builder = builder.route(RequestPredicates.path("/api/**"), request ->
                 RespuestasGateway.error(request.exchange(), HttpStatus.NOT_FOUND,
                         CodigosError.ROUTE_NOT_FOUND,
                         "ruta no declarada en el gateway: " + request.path()));
+
+        // SPA (FIX-0008 BR-005/BR-006/BR-007): estáticos de classpath:/static/ + índice para las
+        // rutas del cliente. Resolución contenida y 404 para assets inexistentes.
+        builder = builder.route(RequestPredicates.path("/**"),
+                new com.wrsensor.gateway.infrastructure.adapter.in.web.ServidorSpa(
+                        props.seguridad() == null
+                                ? new GatewayProperties.SeguridadCfg(null, null, null, null, null, null,
+                                        null, null, null)
+                                : props.seguridad()));
 
         return builder.build();
     }

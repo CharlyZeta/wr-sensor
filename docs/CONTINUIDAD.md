@@ -11,8 +11,8 @@
   orquestada con Docker Compose, con un **punto de entrada único** (`api-gateway`).
 - **Cómo se trabajó**: con el frame **SDD-GL** (spec-driven, Gate → aprobación humana → Loop
   autónomo → RESOLVED) instalado en este repo. Cada work item tiene su **Contract** en `contracts/`.
-- **Estado**: **19 work items RESOLVED** (12 FEAT + 7 FIX), **408/408 criterios ✅**, **414 tests**
-  (307 unit + 107 IT). **Abierta la serie del frontend**: 4 contracts en **Gate** (DRAFT, esperando
+- **Estado**: **19 work items RESOLVED** (12 FEAT + 7 FIX), **432/432 criterios ✅**, **438 tests**
+  (323 unit + 115 IT). **Abierta la serie del frontend**: 4 contracts en **Gate** (DRAFT, esperando
   aprobación humana) que dividen el SPA por capacidad funcional — `FEAT-0009` (núcleo: sesión, shell,
   mapa y hosting desde el gateway), `FEAT-0014` (detalle en vivo: WS de lecturas + serie de 24 h),
   `FEAT-0015` (alertas en vivo: feed + refresco del mapa) y `FEAT-0016` (administración y demo).
@@ -132,7 +132,7 @@ estado del circuit breaker `http://localhost:8090/api/ingestion/resiliencia` (co
 ## 6. Último trabajo cerrado: `FEAT-0008` (Loop 31/31 ✅, pendiente validación humana)
 
 **Qué es:** los tres habilitadores que el frontend necesita del backend. **Los tres están
-implementados y con tests verdes** (`api-gateway` 68+29 · `query-api` 33+8).
+implementados y con tests verdes** (`api-gateway` 84+37 · `query-api` 33+8).
 
 | # | Alcance | Estado / decisión aprobada |
 |---|---|---|
@@ -191,7 +191,7 @@ aprobada por el humano; los cuatro son **sólo frontend** (no cambian el backend
    `docker version` (para ITs), `node --version` (para el frontend: hay Node 26.3.0 / npm 11.16.0),
    `$env:JAVA_HOME` y `$mvn`.
 5. Correr la línea base para asegurarse de que el árbol está sano:
-   `& $mvn -o -f services\api-gateway\pom.xml test` (68 unit) y
+   `& $mvn -o -f services\api-gateway\pom.xml test` (84 unit) y
    `& $mvn -o -f services\query-api\pom.xml test` (33 unit) — son los módulos que tocó el último
    work item. Los ITs del gateway **no necesitan Docker**; los de query-api sí.
 6. Continuar con el work item abierto siguiendo `protocol/gate.md` o `protocol/loop.md`.

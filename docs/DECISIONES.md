@@ -251,3 +251,43 @@ llega al downstream); el mapa se resuelve con 2 requests en lugar de 1+N; el res
 configurables y un modo de fallo explícito `502`). Regresión de FEAT-0007 asumida y documentada: el
 túnel WS ahora exige token, así que su IT manda uno válido (AC-006 lo contempla).
 
+## ADR-0020 · Endurecimiento del punto de entrada: secreto del WS, headers de seguridad y hosting seguro del SPA (FIX-0008)
+**Contexto:** antes de servir el SPA desde el gateway se hizo una **revisión de seguridad** (informe
+completo en `.sdd/runs/FIX-0008-20260915-*.md`). Encontró tres problemas que se refuerzan: (a) en
+`docker-compose.yml` el servicio `api-gateway` **no recibía `AUTH_JWT_SECRET`**, así que usaba el
+default de desarrollo (público en el repo) — y como el gateway es quien valida el JWT del handshake
+WebSocket, en un despliegue con el secreto rotado **cualquiera podía forjar un token `ADMIN`/`VIEWER`**
+y abrir la telemetría y las alertas (hallazgo S1); (b) **no existía ningún header de seguridad** en
+todo el repositorio (0 coincidencias de `Content-Security-Policy`, `X-Content-Type-Options`,
+`Referrer-Policy`, `X-Frame-Options`), de modo que el panel iba a quedar sin segunda línea de defensa
+contra XSS/clickjacking justo cuando el token vive en `sessionStorage` (S3); (c) el catch-all del
+router (`404 ROUTE_NOT_FOUND` para todo path no declarado) **impedía servir el SPA**, y el fallback
+ingenuo ("todo lo que no matchea → `index.html`") habría roto el contrato de la API y devuelto
+`200 text/html` a un `<script src>` inexistente (S2/A6).
+**Decisión (orquestador 2026-09-15, sujeto a HO-Gate):** (1) `AUTH_JWT_SECRET` se propaga al gateway
+en Compose con el mismo default por entorno que el registry, y **fail-fast**: fuera de los perfiles
+`dev`/`local`/`test` el gateway **no arranca** con el secreto de desarrollo (en desarrollo arranca con
+WARN explícito); (2) los headers de seguridad y la **CSP** los aplica el gateway a toda respuesta
+(`gateway.seguridad.*`), **una sola vez**: `RespuestasGateway.propagable` descarta los del downstream
+para que un servicio comprometido no pueda pisarlos; `script-src 'self'` sin `unsafe-inline` ni
+`unsafe-eval` (el vector que roba el token), `img-src` acotado a lo propio y a los tiles
+configurados, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'` y HSTS **sólo** cuando
+la request llegó por HTTPS; (3) el SPA se sirve desde `classpath:/static/` con **resolución
+contenida** (rechazo de `..`/`%2e%2e`/backslash/byte nulo/rutas absolutas), **lista explícita de rutas
+de cliente** para el fallback (`/`, `/login`, `/mapa`, `/sensores/**`), `404` para cualquier asset
+inexistente y **prefijos reservados** (`/api/**`, `/ws/**`) que nunca reciben el índice; caché
+explícita (`no-store` para el índice, inmutable por hash para los assets).
+**Alternativas descartadas:** headers en cada servicio (cuatro configuraciones que se desincronizan y
+que no cubren el SPA); fallback "todo → índice" (rompe el 404 de la API y sirve HTML a assets rotos);
+`unsafe-inline` en `script-src` (anula la protección justo donde importa); tolerar el secreto de
+desarrollo en cualquier perfil con sólo un WARN (un gateway que acepta tokens forjables no debe poder
+arrancar por accidente en un entorno real); dejar el hosting en un servidor estático aparte (rompe la
+decisión de punto de entrada único de ADR-0019/FEAT-0008 BR-009).
+**Consecuencias:** el SPA puede servirse same-origin sin abrir la superficie de la API; un token
+forjado con el secreto del repo deja de ser aceptado en cualquier entorno que no sea de desarrollo
+(verificado en el IT y documentado paso a paso en el RUNBOOK §9); el frontend hereda una CSP estricta
+que le exige (y le garantiza) no depender de scripts inline; quedan fuera de alcance los requisitos
+del SPA que la revisión listó como A2–A5/A7–A15 (sinks de XSS, logout atómico, validación de payloads
+de WS), que se cubren en los contracts `FEAT-0009`/`FEAT-0014`/`FEAT-0015`/`FEAT-0016`; y se
+documenta que CSRF no aplica (no hay cookies: el rol se resuelve sólo desde `Authorization`).
+

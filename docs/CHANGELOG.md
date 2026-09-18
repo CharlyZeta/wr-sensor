@@ -7,6 +7,47 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FIX-0008] — 2026-09-15 — Endurecimiento del punto de entrada (revisión de seguridad)
+
+`contracts/FIX-0008.md` (24/24 ✅) · ADR-0020 · informe de seguridad en `.sdd/runs/FIX-0008-20260915-*.md` ·
+suites `api-gateway` 78 unit + 37 IT (nuevos `FIX0008SeguridadTest` 10, `FIX0008MainFlowIT` 8,
+`FIX0008DocsTest` 6).
+
+**Corregido — hallazgo S1 (alto): el gateway aceptaba tokens forjables.**
+`docker-compose.yml` no le pasaba `AUTH_JWT_SECRET` al servicio `api-gateway`, así que caía al
+default de desarrollo —**público en el repositorio**— mientras el registry usaba el secreto real.
+Como el gateway es quien valida el JWT del handshake WebSocket (`FEAT-0008`), en un despliegue con el
+secreto rotado cualquiera podía acuñar un token `ADMIN`/`VIEWER` con el valor del repo y **abrir la
+telemetría y las alertas sin credenciales**. Ahora el secreto se propaga con el mismo default por
+entorno que el registry, y fuera de los perfiles de desarrollo el gateway **no arranca** si sigue
+siendo el de desarrollo (en dev arranca con WARN explícito).
+
+**Agregado — headers de seguridad y CSP (S3, requisito A1).**
+Antes había **cero** headers de seguridad en todo el repositorio. El gateway aplica ahora, a toda
+respuesta y **una sola vez** (descarta los que manda el downstream, para que un servicio comprometido
+no pueda pisarlos): `Content-Security-Policy` (con `script-src 'self'`, sin `unsafe-inline` ni
+`unsafe-eval` —el vector que roba el token—, `img-src` acotado a lo propio y a los tiles
+configurados, `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`),
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`,
+`Permissions-Policy`, `Cross-Origin-Resource-Policy: same-origin` y HSTS **sólo** cuando la request
+llegó por HTTPS. Todo configurable en `gateway.seguridad.*`.
+
+**Agregado — hosting del SPA con resolución segura (S2/A6).**
+El catch-all del router impedía servir el SPA. Ahora el gateway sirve los estáticos de
+`classpath:/static/` con **resolución contenida** (rechaza `..`, `%2e%2e`, backslash, byte nulo y
+rutas absolutas; nunca sale de la raíz), **lista explícita de rutas de cliente** para el fallback del
+router del SPA (`/`, `/login`, `/mapa`, `/sensores/**`), `404` para cualquier asset inexistente
+(nunca `200` con HTML para un `<script>` roto), **prefijos reservados** `/api/**` y `/ws/**` que jamás
+reciben el índice, y caché explícita (`no-store` para el índice, inmutable por hash para los assets).
+El `404 ROUTE_NOT_FOUND` de la API y el `426`/`401` del WS siguen verificados por sus ITs.
+
+**Fuera de alcance (declarado):** los requisitos del SPA que surgieron de la misma revisión
+(sinks de XSS en Leaflet, logout atómico, validación de payloads de WS, expiración) se cubren en
+`FEAT-0009`/`FEAT-0014`/`FEAT-0015`/`FEAT-0016`; autenticación de los REST en el gateway, refresh y
+revocación de tokens, cookies/CSRF (no aplican: el backend no emite cookies), WAF, CAPTCHA, mTLS y
+`X-XSS-Protection` (obsoleto). Se documenta que `docker-compose.dev.yml` publica los puertos de los
+servicios y no debe usarse fuera de una máquina de desarrollo.
+
 ## [No publicado] — serie del frontend (`FEAT-0009`, `FEAT-0014`, `FEAT-0015`, `FEAT-0016`) · en Gate
 
 Los habilitadores del backend (`FEAT-0008`) están cerrados, así que el SPA ya se puede especificar

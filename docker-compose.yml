@@ -140,6 +140,10 @@ services:
       QUERY_API_URL: http://query-api:8082
       ALERTING_URL: http://alerting-service:8083
       GATEWAY_CONFIAR_XFF: ${GATEWAY_CONFIAR_XFF:-false}
+      # FIX-0008 BR-001 (hallazgo S1): el gateway valida el JWT del handshake WebSocket, así que
+      # DEBE recibir el mismo secreto que el registry. Sin esta variable caía al default de
+      # desarrollo (público en el repo) y cualquiera podía forjar un token ADMIN/VIEWER.
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-wrsensor-dev-secret-2026-no-usar-en-prod}
     depends_on:
       sensor-registry: { condition: service_started }
       query-api: { condition: service_started }

@@ -26,6 +26,7 @@
    └── FEAT-0006: Autenticación con JWT — POST /api/auth/login [21/21 ✅]
    └── FEAT-0007: api-gateway — punto de entrada único, rate limiting y correlación [33/33 ✅]
    └── FEAT-0008: habilitadores del frontend (CORS, auth de WebSocket, resumen de sensores) [31/31 ✅]
+   └── FIX-0008: seguridad del punto de entrada (secreto WS, headers/CSP, hosting seguro) [24/24 ✅]
    └── FEAT-0010: data-simulator — generador de lecturas sintéticas [23/23 ✅]
    └── FEAT-0011: ingestion-service — consumo y severidad de lecturas [22/22 ✅]
    └── FEAT-0012: alerting-service — histéresis y notificación de alertas [22/22 ✅]
@@ -38,8 +39,8 @@
    └── FIX-0006: versionado del schema de sensor.lecturas (payload v1) [31/31 ✅]
    └── FIX-0007: resiliencia del lookup de config (timeouts, breaker, cache TTL) [30/30 ✅]
 
-Total: 23 contracts | 4 in Gate (serie del frontend) | 0 in Loop | 19 resolved
-Criterios de completitud: 408/408 ✅ en los 19 resueltos (253 en FEATs + 124 en FIXes + 31 de FEAT-0008)
+Total: 24 contracts | 4 in Gate (serie del frontend) | 0 in Loop | 20 resolved
+Criterios de completitud: 432/432 ✅ en los 20 resueltos (253 en FEATs + 148 en FIXes + 31 de FEAT-0008)
                          + 121 criterios en Gate: FEAT-0009 32, FEAT-0014 29, FEAT-0015 29, FEAT-0016 31
 ```
 
@@ -74,6 +75,7 @@ Criterios de completitud: 408/408 ✅ en los 19 resueltos (253 en FEATs + 124 en
 | FIX-0006 | `data-simulator` + `ingestion-service` + `query-api` — payload v1 | 31/31 ✅ | ADR-0017 · `.sdd/runs/FIX-0006-20260913-150000.md` |
 | FIX-0007 | `ingestion-service` — resiliencia del lookup de config | 30/30 ✅ | ADR-0018 · `.sdd/runs/FIX-0007-20260913-153000.md` |
 | FEAT-0008 | `api-gateway` (CORS + auth WS + ruteo) y `query-api` (resumen del mapa) | 31/31 ✅ | ADR-0019 · `.sdd/runs/FEAT-0008-*.md` |
+| FIX-0008 | `api-gateway` — secreto del WS, headers/CSP y hosting seguro del SPA | 24/24 ✅ | ADR-0020 · `.sdd/runs/FIX-0008-*.md` |
 | FEAT-0009 | **SPA (`web/`)** — sesión, shell, mapa y hosting desde el gateway | 0/32 🔴 Gate | contract `contracts/FEAT-0009.md` (parte 1 de 4) |
 | FEAT-0014 | **SPA (`web/`)** — detalle en vivo (WS lecturas + serie 24 h) | 0/29 🔴 Gate | contract `contracts/FEAT-0014.md` (parte 2 de 4) |
 | FEAT-0015 | **SPA (`web/`)** — alertas en vivo (feed + refresco del mapa) | 0/29 🔴 Gate | contract `contracts/FEAT-0015.md` (parte 3 de 4) |
@@ -93,8 +95,8 @@ Criterios de completitud: 408/408 ✅ en los 19 resueltos (253 en FEATs + 124 en
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 68 | 29 | 97 |
-| **Total** | **307** | **107** | **414** |
+| `api-gateway` | 84 | 37 | 121 |
+| **Total** | **323** | **115** | **438** |
 
 Cómo reproducirlo:
 

@@ -10,7 +10,8 @@ import java.util.Map;
  * documentados en {@code application.yml}; nada hardcodeado en el código.
  */
 @ConfigurationProperties(prefix = "gateway")
-public record GatewayProperties(List<RutaCfg> rutas, RateLimitCfg rateLimit, CorsCfg cors, WsCfg ws) {
+public record GatewayProperties(List<RutaCfg> rutas, RateLimitCfg rateLimit, CorsCfg cors, WsCfg ws,
+                                SeguridadCfg seguridad) {
 
     /**
      * Ruta declarada: patrón de path, métodos (vacío = todos), destino y clase de límite.
@@ -100,6 +101,76 @@ public record GatewayProperties(List<RutaCfg> rutas, RateLimitCfg rateLimit, Cor
 
         public String parametroTokenOrDefault() {
             return parametroToken == null || parametroToken.isBlank() ? "token" : parametroToken.trim();
+        }
+    }
+
+    /**
+     * Endurecimiento del punto de entrada (FIX-0008 BR-002/BR-003/BR-004/BR-006/BR-007): headers de
+     * seguridad, CSP, rutas de cliente que resuelve el SPA y caché de los estáticos. Todo con default
+     * documentado y overrides por entorno.
+     *
+     * @param perfilesDesarrollo perfiles en los que se tolera el secreto de desarrollo del WS
+     * @param contentSecurityPolicy CSP aplicada a toda respuesta (null/blank = default seguro)
+     * @param rutasCliente       prefijos de rutas que devuelven el índice del SPA (fallback de cliente)
+     * @param staticLocation     raíz classpath de los estáticos (nunca se sale de acá)
+     * @param cacheAssetsSegundos caché de los assets versionados por hash
+     * @param cacheEstaticosSegundos caché del resto de los estáticos (no el índice)
+     */
+    public record SeguridadCfg(List<String> perfilesDesarrollo, String contentSecurityPolicy,
+                               List<String> rutasCliente, String staticLocation,
+                               Long cacheAssetsSegundos, Long cacheEstaticosSegundos,
+                               String permisosPolitica, Boolean hsts, Long hstsMaxAgeSegundos) {
+
+        public static final String SECRETO_DESARROLLO = "wrsensor-dev-secret-2026-no-usar-en-prod";
+
+        public List<String> perfilesDesarrolloOrDefault() {
+            return perfilesDesarrollo == null || perfilesDesarrollo.isEmpty()
+                    ? List.of("dev", "local", "test") : List.copyOf(perfilesDesarrollo);
+        }
+
+        public String staticLocationOrDefault() {
+            return staticLocation == null || staticLocation.isBlank() ? "static/" : staticLocation.trim();
+        }
+
+        public List<String> rutasClienteOrDefault() {
+            return rutasCliente == null || rutasCliente.isEmpty()
+                    ? List.of("/", "/login", "/mapa", "/sensores") : List.copyOf(rutasCliente);
+        }
+
+        public String permisosPoliticaOrDefault() {
+            return permisosPolitica == null || permisosPolitica.isBlank()
+                    ? "geolocation=(), camera=(), microphone=()" : permisosPolitica.trim();
+        }
+
+        public boolean hstsOrDefault() {
+            return hsts == null || hsts;
+        }
+
+        public long hstsMaxAgeSegundosOrDefault() {
+            return hstsMaxAgeSegundos == null ? 31_536_000L : hstsMaxAgeSegundos;
+        }
+
+        public long cacheAssetsSegundosOrDefault() {
+            return cacheAssetsSegundos == null ? 31_536_000L : cacheAssetsSegundos;
+        }
+
+        public long cacheEstaticosSegundosOrDefault() {
+            return cacheEstaticosSegundos == null ? 3_600L : cacheEstaticosSegundos;
+        }
+
+        /**
+         * CSP por default: sin {@code unsafe-inline}/{@code unsafe-eval} en {@code script-src}
+         * (ahí está el vector que roba el token), {@code img-src} acotado a lo propio, datos e
+         * imágenes, y {@code connect-src 'self'} (cubre las WS del mismo origen).
+         */
+        public String contentSecurityPolicyOrDefault() {
+            return contentSecurityPolicy == null || contentSecurityPolicy.isBlank()
+                    ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                            + "img-src 'self' data: https://tile.openstreetmap.org "
+                            + "https://*.tile.openstreetmap.org; font-src 'self' data:; "
+                            + "connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; "
+                            + "form-action 'self'; frame-ancestors 'none'"
+                    : contentSecurityPolicy.trim();
         }
     }
 }
