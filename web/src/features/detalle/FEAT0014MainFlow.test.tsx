@@ -9,6 +9,7 @@ import {
   restaurarHistorico,
   sensoresDeEjemplo,
 } from '../../test/servidor'
+import { FakeWebSocket, instalarWebSocketFalso } from '../../test/servidor'
 import { HttpResponse } from 'msw'
 
 /**
@@ -19,67 +20,6 @@ import { HttpResponse } from 'msw'
  * intentadas (para verificar que el token va en el query y **no** se loguea) y permite inyectar
  * lecturas, cierres y errores de forma determinista.
  */
-class FakeWebSocket {
-  static instancias: FakeWebSocket[] = []
-  static readonly CONNECTING = 0
-  static readonly OPEN = 1
-  static readonly CLOSING = 2
-  static readonly CLOSED = 3
-
-  readonly url: string
-  readyState = FakeWebSocket.CONNECTING
-  onopen: ((e: Event) => void) | null = null
-  onmessage: ((e: MessageEvent) => void) | null = null
-  onclose: ((e: CloseEvent) => void) | null = null
-  onerror: ((e: Event) => void) | null = null
-
-  constructor(url: string) {
-    this.url = url
-    FakeWebSocket.instancias.push(this)
-  }
-
-  abrir(): void {
-    this.readyState = FakeWebSocket.OPEN
-    this.onopen?.(new Event('open'))
-  }
-
-  emitir(payload: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent)
-  }
-
-  emitirCrudo(texto: string): void {
-    this.onmessage?.({ data: texto } as MessageEvent)
-  }
-
-  cerrar(code = 1006): void {
-    this.readyState = FakeWebSocket.CLOSED
-    this.onclose?.({ code } as CloseEvent)
-  }
-
-  close(): void {
-    this.readyState = FakeWebSocket.CLOSED
-  }
-
-  /** Última instancia creada por el SPA (se usa como `FakeWebSocket.deSensor`). */
-  /** Socket del detalle (el shell también abre el de alertas: hay que distinguirlos). */
-  static get deSensor(): FakeWebSocket {
-    const propios = FakeWebSocket.instancias.filter((s) => s.url.includes('/ws/sensores/'))
-    const ultima = propios[propios.length - 1]
-    if (ultima === undefined) {
-      throw new Error('no hay WebSocket de sensor abierto')
-    }
-    return ultima
-  }
-
-  static get ultima(): FakeWebSocket {
-    const propios = FakeWebSocket.instancias.filter((s) => s.url.includes('/ws/sensores/'))
-    const ultima = propios[propios.length - 1]
-    if (ultima === undefined) {
-      throw new Error('no hay WebSocket abierto')
-    }
-    return ultima
-  }
-}
 
 function renderDetalle(id = sensoresDeEjemplo[0]?.id ?? '') {
   window.sessionStorage.setItem(
@@ -99,8 +39,7 @@ function renderDetalle(id = sensoresDeEjemplo[0]?.id ?? '') {
 }
 
 beforeEach(() => {
-  FakeWebSocket.instancias = []
-  vi.stubGlobal('WebSocket', FakeWebSocket as unknown as typeof WebSocket)
+  instalarWebSocketFalso()
 })
 
 describe('FEAT-0014 · Main Flow', () => {
@@ -108,7 +47,7 @@ describe('FEAT-0014 · Main Flow', () => {
     renderDetalle()
 
     expect(await screen.findByRole('heading', { name: /Norte/ })).toBeInTheDocument()
-    const socket = FakeWebSocket.deSensor
+    const socket = FakeWebSocket.ultimaDe('/ws/sensores/')
     socket.abrir()
 
     expect(await screen.findByText('En vivo')).toBeInTheDocument()
@@ -128,7 +67,7 @@ describe('FEAT-0014 · Main Flow', () => {
     })
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    const socket = FakeWebSocket.deSensor
+    const socket = FakeWebSocket.ultimaDe('/ws/sensores/')
     socket.abrir()
     const antes = pedidosHistorico
 
@@ -150,7 +89,7 @@ describe('FEAT-0014 · Main Flow', () => {
   it('BR-007/AC-009: deduplica por timestamp y mantiene el orden al insertar', async () => {
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    const socket = FakeWebSocket.deSensor
+    const socket = FakeWebSocket.ultimaDe('/ws/sensores/')
     socket.abrir()
 
     const repetida = {
@@ -189,7 +128,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
       await screen.findByRole('heading', { name: /Norte/ })
       expect(FakeWebSocket.instancias.filter((s) => s.url.includes("/ws/sensores/"))).toHaveLength(1)
 
-      FakeWebSocket.deSensor.cerrar()
+      FakeWebSocket.ultimaDe('/ws/sensores/').cerrar()
       expect(await screen.findByText(/Reconectando \(intento 1\)/)).toBeInTheDocument()
 
       // el backoff no reintenta inmediatamente
@@ -204,7 +143,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
   it('AF-02/A5: un cierre por autenticación cierra la sesión y no filtra el token en la UI', async () => {
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    FakeWebSocket.deSensor.cerrar(1008)
+    FakeWebSocket.ultimaDe('/ws/sensores/').cerrar(1008)
 
     expect(await screen.findByRole('heading', { name: 'WR-Sensor' })).toBeInTheDocument()
     expect(document.body.textContent ?? '').not.toContain('token-de-prueba')
@@ -220,7 +159,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
       renderDetalle()
       await screen.findByRole('heading', { name: /Norte/ })
 
-      const socket = FakeWebSocket.deSensor
+      const socket = FakeWebSocket.ultimaDe('/ws/sensores/')
       expect(socket.url).toContain('/ws/sensores/')
       expect(socket.url).toContain('token=token-de-prueba')
       // la URL con el token no se muestra en el DOM ni se escribe en consola
@@ -252,7 +191,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
     )
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    FakeWebSocket.deSensor.abrir()
+    FakeWebSocket.ultimaDe('/ws/sensores/').abrir()
 
     expect(await screen.findByText(/histórico se reintenta en 4 s/i)).toBeInTheDocument()
     expect(screen.getByText('En vivo')).toBeInTheDocument()
@@ -281,7 +220,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
   it('AF-07/BR-007: un payload inválido por WS se descarta sin romper la vista', async () => {
     renderDetalle()
     await screen.findByRole('heading', { name: /Norte/ })
-    const socket = FakeWebSocket.deSensor
+    const socket = FakeWebSocket.ultimaDe('/ws/sensores/')
     socket.abrir()
 
     socket.emitirCrudo('esto no es json')
@@ -298,7 +237,7 @@ describe('FEAT-0014 · Alternative Flows', () => {
     const usuario = userEvent.setup()
     renderDetalle(sensoresDeEjemplo[0]?.id ?? '')
     await screen.findByRole('heading', { name: /Norte/ })
-    const primera = FakeWebSocket.deSensor
+    const primera = FakeWebSocket.ultimaDe('/ws/sensores/')
     primera.abrir()
 
     // navegación por el shell (no hay link directo al mapa en el detalle): se usa el botón del mapa

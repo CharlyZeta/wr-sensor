@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from '../../App'
 import { conResumen, restaurarResumen, sensoresDeEjemplo } from '../../test/servidor'
+import { FakeWebSocket, instalarWebSocketFalso } from '../../test/servidor'
 import { HttpResponse } from 'msw'
 
 /**
@@ -12,58 +13,6 @@ import { HttpResponse } from 'msw'
  * El WS se reemplaza por un doble controlable (mismo patrón que FEAT-0014) para poder afirmar
  * cuántas conexiones se abren, qué URL llevan y qué pasa con ráfagas, duplicados y normalizaciones.
  */
-class FakeWebSocket {
-  static instancias: FakeWebSocket[] = []
-  static readonly CONNECTING = 0
-  static readonly OPEN = 1
-  static readonly CLOSED = 3
-
-  readonly url: string
-  readyState = FakeWebSocket.CONNECTING
-  onopen: ((e: Event) => void) | null = null
-  onmessage: ((e: MessageEvent) => void) | null = null
-  onclose: ((e: CloseEvent) => void) | null = null
-  onerror: ((e: Event) => void) | null = null
-
-  constructor(url: string) {
-    this.url = url
-    FakeWebSocket.instancias.push(this)
-  }
-
-  abrir(): void {
-    this.readyState = FakeWebSocket.OPEN
-    this.onopen?.(new Event('open'))
-  }
-
-  emitir(payload: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent)
-  }
-
-  emitirCrudo(texto: string): void {
-    this.onmessage?.({ data: texto } as MessageEvent)
-  }
-
-  cerrar(code = 1006): void {
-    this.readyState = FakeWebSocket.CLOSED
-    this.onclose?.({ code } as CloseEvent)
-  }
-
-  close(): void {
-    this.readyState = FakeWebSocket.CLOSED
-  }
-
-  static get ultima(): FakeWebSocket {
-    const ultima = FakeWebSocket.instancias[FakeWebSocket.instancias.length - 1]
-    if (ultima === undefined) {
-      throw new Error('no hay WebSocket abierto')
-    }
-    return ultima
-  }
-
-  static get deAlertas(): FakeWebSocket[] {
-    return FakeWebSocket.instancias.filter((s) => s.url.includes('/ws/alertas'))
-  }
-}
 
 function sesionActiva(): void {
   window.sessionStorage.setItem(
@@ -95,8 +44,7 @@ const ALERTA = {
 }
 
 beforeEach(() => {
-  FakeWebSocket.instancias = []
-  vi.stubGlobal('WebSocket', FakeWebSocket as unknown as typeof WebSocket)
+  instalarWebSocketFalso()
 })
 
 describe('FEAT-0015 · Main Flow', () => {
@@ -104,8 +52,8 @@ describe('FEAT-0015 · Main Flow', () => {
     renderApp('/mapa')
     await screen.findByRole('heading', { name: 'Mapa de sensores' })
 
-    await waitFor(() => expect(FakeWebSocket.deAlertas).toHaveLength(1))
-    const socket = FakeWebSocket.deAlertas[0]
+    await waitFor(() => expect(FakeWebSocket.de('/ws/alertas')).toHaveLength(1))
+    const socket = FakeWebSocket.de('/ws/alertas')[0]
     expect(socket?.url).toContain('/ws/alertas')
     expect(socket?.url).toContain('token=token-de-prueba')
     // el token no se muestra en el DOM
@@ -115,9 +63,9 @@ describe('FEAT-0015 · Main Flow', () => {
   it('AC-002: una alerta CRITICAL aparece en el feed con el nombre del sensor y su transición', async () => {
     renderApp('/alertas')
     await screen.findByRole('heading', { name: 'Alertas' })
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.ultimaDe('/ws/alertas').abrir()
 
-    FakeWebSocket.ultima.emitir(ALERTA)
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir(ALERTA)
 
     const feed = await screen.findByRole('list', { name: 'Alertas confirmadas' })
     expect(within(feed).getByText(/Centro/)).toBeInTheDocument()
@@ -130,14 +78,14 @@ describe('FEAT-0015 · Main Flow', () => {
     const usuario = userEvent.setup()
     renderApp('/mapa')
     await screen.findByRole('heading', { name: 'Mapa de sensores' })
-    await waitFor(() => expect(FakeWebSocket.deAlertas).toHaveLength(1))
+    await waitFor(() => expect(FakeWebSocket.de('/ws/alertas')).toHaveLength(1))
 
     await usuario.click(screen.getByRole('link', { name: 'Alertas' }))
     await screen.findByRole('heading', { name: 'Alertas' })
     await usuario.click(screen.getByRole('link', { name: 'Mapa' }))
     await screen.findByRole('heading', { name: 'Mapa de sensores' })
 
-    expect(FakeWebSocket.deAlertas).toHaveLength(1)
+    expect(FakeWebSocket.de('/ws/alertas')).toHaveLength(1)
   })
 })
 
@@ -145,11 +93,11 @@ describe('FEAT-0015 · Alternative Flows', () => {
   it('AC-003/AF-03/BR-003: deduplica la alerta repetida y ordena por timestamp descendente', async () => {
     renderApp('/alertas')
     await screen.findByRole('heading', { name: 'Alertas' })
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.ultimaDe('/ws/alertas').abrir()
 
-    FakeWebSocket.ultima.emitir(ALERTA)
-    FakeWebSocket.ultima.emitir(ALERTA) // duplicada exacta
-    FakeWebSocket.ultima.emitir({ ...ALERTA, timestamp: '2026-09-15T11:00:00Z', severidadNueva: 'WARNING', severidadAnterior: 'NORMAL' })
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir(ALERTA)
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir(ALERTA) // duplicada exacta
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir({ ...ALERTA, timestamp: '2026-09-15T11:00:00Z', severidadNueva: 'WARNING', severidadAnterior: 'NORMAL' })
 
     const feed = await screen.findByRole('list', { name: 'Alertas confirmadas' })
     await waitFor(() => expect(within(feed).getAllByRole('listitem')).toHaveLength(2))
@@ -169,11 +117,11 @@ describe('FEAT-0015 · Alternative Flows', () => {
   it('AC-006/AF-07/BR-006: una normalización no cuenta como crítica no leída', async () => {
     renderApp('/alertas')
     await screen.findByRole('heading', { name: 'Alertas' })
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.ultimaDe('/ws/alertas').abrir()
 
     // subida (cuenta) y bajada (no cuenta)
-    FakeWebSocket.ultima.emitir(ALERTA)
-    FakeWebSocket.ultima.emitir({
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir(ALERTA)
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir({
       ...ALERTA,
       timestamp: '2026-09-15T12:20:00Z',
       severidadNueva: 'NORMAL',
@@ -189,9 +137,9 @@ describe('FEAT-0015 · Alternative Flows', () => {
     conResumen(() => HttpResponse.json([sensoresDeEjemplo[0]]))
     renderApp('/alertas')
     await screen.findByRole('heading', { name: 'Alertas' })
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.ultimaDe('/ws/alertas').abrir()
 
-    FakeWebSocket.ultima.emitir({
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir({
       ...ALERTA,
       sensorId: '00000000-0000-4000-8000-0000000000ff',
     })
@@ -208,16 +156,16 @@ describe('FEAT-0015 · Alternative Flows', () => {
     try {
       renderApp('/alertas')
       await screen.findByRole('heading', { name: 'Alertas' })
-      FakeWebSocket.ultima.abrir()
-      FakeWebSocket.ultima.emitir(ALERTA)
+      FakeWebSocket.ultimaDe('/ws/alertas').abrir()
+      FakeWebSocket.ultimaDe('/ws/alertas').emitir(ALERTA)
       const feed = await screen.findByRole('list', { name: 'Alertas confirmadas' })
 
-      FakeWebSocket.ultima.cerrar()
+      FakeWebSocket.ultimaDe('/ws/alertas').cerrar()
       expect(await screen.findByText(/Reconectando alertas \(intento 1\)/)).toBeInTheDocument()
       // el feed previo no se borra
       expect(within(feed).getAllByRole('listitem')).toHaveLength(1)
       await vi.advanceTimersByTimeAsync(5_000)
-      expect(FakeWebSocket.deAlertas.length).toBeGreaterThanOrEqual(2)
+      expect(FakeWebSocket.de('/ws/alertas').length).toBeGreaterThanOrEqual(2)
     } finally {
       vi.useRealTimers()
     }
@@ -226,7 +174,7 @@ describe('FEAT-0015 · Alternative Flows', () => {
   it('AC-008/AF-02: un cierre por autenticación cierra la sesión', async () => {
     renderApp('/alertas')
     await screen.findByRole('heading', { name: 'Alertas' })
-    FakeWebSocket.ultima.cerrar(1008)
+    FakeWebSocket.ultimaDe('/ws/alertas').cerrar(1008)
 
     expect(await screen.findByRole('heading', { name: 'WR-Sensor' })).toBeInTheDocument()
     expect(window.sessionStorage.getItem('wrsensor.sesion')).toBeNull()
@@ -235,11 +183,11 @@ describe('FEAT-0015 · Alternative Flows', () => {
   it('AF-07/A13: payloads inválidos se descartan sin romper el feed', async () => {
     renderApp('/alertas')
     await screen.findByRole('heading', { name: 'Alertas' })
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.ultimaDe('/ws/alertas').abrir()
 
-    FakeWebSocket.ultima.emitirCrudo('no es json')
-    FakeWebSocket.ultima.emitir({ sinSensor: true })
-    FakeWebSocket.ultima.emitir({ sensorId: 'x', timestamp: 'y', severidadNueva: 'INVENTADA' })
+    FakeWebSocket.ultimaDe('/ws/alertas').emitirCrudo('no es json')
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir({ sinSensor: true })
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir({ sensorId: 'x', timestamp: 'y', severidadNueva: 'INVENTADA' })
 
     expect(await screen.findByText('Sin alertas en esta sesión')).toBeInTheDocument()
     expect(document.body.textContent ?? '').not.toContain('undefined')
@@ -256,10 +204,10 @@ describe('FEAT-0015 · ráfagas y contador', () => {
     renderApp('/mapa')
     await screen.findByRole('heading', { name: 'Mapa de sensores' })
     await waitFor(() => expect(pedidosResumen).toBe(1))
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.ultimaDe('/ws/alertas').abrir()
 
     for (let i = 0; i < 5; i += 1) {
-      FakeWebSocket.ultima.emitir({
+      FakeWebSocket.ultimaDe('/ws/alertas').emitir({
         ...ALERTA,
         timestamp: `2026-09-15T12:1${i}:00Z`,
       })
@@ -276,9 +224,9 @@ describe('FEAT-0015 · ráfagas y contador', () => {
     const usuario = userEvent.setup()
     renderApp('/mapa')
     await screen.findByRole('heading', { name: 'Mapa de sensores' })
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.ultimaDe('/ws/alertas').abrir()
 
-    FakeWebSocket.ultima.emitir(ALERTA)
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir(ALERTA)
 
     const enlace = await screen.findByRole('link', { name: /Alertas/ })
     await waitFor(() => expect(enlace.textContent).toMatch(/1/))
@@ -291,12 +239,15 @@ describe('FEAT-0015 · ráfagas y contador', () => {
   it('BR-008/AC-010: la alerta nueva se anuncia por una región aria-live sin mover el foco', async () => {
     renderApp('/alertas')
     await screen.findByRole('heading', { name: 'Alertas' })
-    FakeWebSocket.ultima.abrir()
+    FakeWebSocket.ultimaDe('/ws/alertas').abrir()
 
-    const vivo = document.querySelector('[aria-live="polite"]')
-    expect(vivo).not.toBeNull()
-    FakeWebSocket.ultima.emitir(ALERTA)
-    await waitFor(() => expect(vivo?.textContent).toMatch(/Alerta CRITICAL/))
+    // La región viva existe desde el primer render y se vuelve a consultar en cada intento (React
+    // puede recrear el nodo al re-renderizar).
+    expect(document.querySelector('[aria-live="polite"]')).not.toBeNull()
+    FakeWebSocket.ultimaDe('/ws/alertas').emitir(ALERTA)
+    await waitFor(() =>
+      expect(document.querySelector('[aria-live="polite"]')?.textContent).toMatch(/Alerta CRITICAL/),
+    )
     // el foco sigue en el body (no se robó)
     expect(document.activeElement).toBe(document.body)
   })

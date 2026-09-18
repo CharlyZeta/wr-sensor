@@ -1,6 +1,78 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import { vi } from 'vitest'
 import type { SensorResumen } from '../api/tipos'
+
+/**
+ * Doble controlable de `WebSocket` para los tests (FEAT-0014/0015/0016).
+ *
+ * El SPA abre WebSocket reales (alertas en el shell, lecturas en el detalle); en jsdom no hay
+ * servidor, así que **todos** los tests que renderizan el shell instalan este doble. Registra las
+ * URLs intentadas (para afirmar por ejemplo que el token va en el query) y permite inyectar
+ * mensajes, cierres y errores de forma determinista.
+ */
+export class FakeWebSocket {
+  static instancias: FakeWebSocket[] = []
+  static readonly CONNECTING = 0
+  static readonly OPEN = 1
+  static readonly CLOSING = 2
+  static readonly CLOSED = 3
+
+  readonly url: string
+  readyState: number = FakeWebSocket.CONNECTING
+  onopen: ((e: Event) => void) | null = null
+  onmessage: ((e: MessageEvent) => void) | null = null
+  onclose: ((e: CloseEvent) => void) | null = null
+  onerror: ((e: Event) => void) | null = null
+
+  constructor(url: string) {
+    this.url = url
+    FakeWebSocket.instancias.push(this)
+  }
+
+  abrir(): void {
+    this.readyState = FakeWebSocket.OPEN
+    this.onopen?.(new Event('open'))
+  }
+
+  emitir(payload: unknown): void {
+    this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent)
+  }
+
+  emitirCrudo(texto: string): void {
+    this.onmessage?.({ data: texto } as MessageEvent)
+  }
+
+  cerrar(code = 1006): void {
+    this.readyState = FakeWebSocket.CLOSED
+    this.onclose?.({ code } as CloseEvent)
+  }
+
+  close(): void {
+    this.readyState = FakeWebSocket.CLOSED
+  }
+
+  /** Sockets de un path concreto (p. ej. `/ws/alertas` o `/ws/sensores/`). */
+  static de(trozo: string): FakeWebSocket[] {
+    return FakeWebSocket.instancias.filter((s) => s.url.includes(trozo))
+  }
+
+  /** Última instancia de un path; falla con un mensaje claro si no hay ninguna. */
+  static ultimaDe(trozo: string): FakeWebSocket {
+    const propios = FakeWebSocket.de(trozo)
+    const ultima = propios[propios.length - 1]
+    if (ultima === undefined) {
+      throw new Error(`no hay WebSocket abierto para ${trozo}`)
+    }
+    return ultima
+  }
+}
+
+/** Instala el doble de WebSocket y limpia las instancias previas (llamar en `beforeEach`). */
+export function instalarWebSocketFalso(): void {
+  FakeWebSocket.instancias = []
+  vi.stubGlobal('WebSocket', FakeWebSocket as unknown as typeof WebSocket)
+}
 
 /**
  * Handlers MSW del SPA. Reproducen exactamente el contrato del backend (códigos `{"code","message"}`,
@@ -173,9 +245,73 @@ export const lecturasDeEjemplo = [
   },
 ]
 
+/** Handlers del CRUD (FEAT-0016): listado keyset, detalle, alta, edición y baja lógica. */
+export const sensorAdminDeEjemplo = {
+  id: '00000000-0000-4000-8000-0000000000a1',
+  codigo: 'S-ADM',
+  nombre: 'Sensor administrable',
+  tipo: 'RIO',
+  latitud: -31.6,
+  longitud: -60.7,
+  unidadMedida: 'METROS',
+  estado: 'ACTIVO',
+  histeresis: 0.5,
+  frecuenciaReporteSegundos: 30,
+  fechaInstalacion: '2026-01-01T00:00:00Z',
+  rangoNormal: { min: 0, max: 10 },
+  rangoWarning: { min: 0, max: 20 },
+  rangoCritical: { min: 0, max: 30 },
+}
+
+let listadoHandler: (url: URL) => Response | Promise<Response> = () =>
+  HttpResponse.json({ items: [sensorAdminDeEjemplo], nextCursor: null })
+
+export function conListadoAdmin(handler: (url: URL) => Response | Promise<Response>): void {
+  listadoHandler = handler
+}
+
+export function restaurarListadoAdmin(): void {
+  listadoHandler = () => HttpResponse.json({ items: [sensorAdminDeEjemplo], nextCursor: null })
+}
+
+let altaHandler: (cuerpo: unknown) => Response | Promise<Response> = () =>
+  HttpResponse.json(sensorAdminDeEjemplo, { status: 201 })
+
+export function conAlta(handler: (cuerpo: unknown) => Response | Promise<Response>): void {
+  altaHandler = handler
+}
+
+export function restaurarAlta(): void {
+  altaHandler = () => HttpResponse.json(sensorAdminDeEjemplo, { status: 201 })
+}
+
+let edicionHandler: () => Response | Promise<Response> = () => HttpResponse.json(sensorAdminDeEjemplo)
+
+export function conEdicion(handler: () => Response | Promise<Response>): void {
+  edicionHandler = handler
+}
+
+export function restaurarEdicion(): void {
+  edicionHandler = () => HttpResponse.json(sensorAdminDeEjemplo)
+}
+
+let bajaHandler: () => Response | Promise<Response> = () => new HttpResponse(null, { status: 204 })
+
+export function conBaja(handler: () => Response | Promise<Response>): void {
+  bajaHandler = handler
+}
+
+export function restaurarBaja(): void {
+  bajaHandler = () => new HttpResponse(null, { status: 204 })
+}
+
 export const servidor = setupServer(
   http.post('/api/auth/login', (info) => loginHandler(info)),
   http.get('/api/sensores/resumen', () => resumenHandler()),
   http.get('/api/sensores/:id/lecturas', ({ request }) => historicoHandler(new URL(request.url))),
+  http.get('/api/sensores', ({ request }) => listadoHandler(new URL(request.url))),
+  http.post('/api/sensores', async ({ request }) => altaHandler(await request.json())),
+  http.put('/api/sensores/:id', () => edicionHandler()),
+  http.delete('/api/sensores/:id', () => bajaHandler()),
   http.get('/api/sensores/:id', () => detalleHandler()),
 )

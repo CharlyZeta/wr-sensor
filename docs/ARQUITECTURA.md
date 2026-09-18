@@ -326,6 +326,17 @@ agrupan (`VITE_ALERTAS_DEBOUNCE_MS`) y disparan **una** recarga del resumen, par
 `lectura`; sólo los empeoramientos de severidad cuentan como críticas no leídas (una normalización
 no). El anuncio de alertas nuevas usa `aria-live` sin robar el foco.
 
+**Administración y demo (FEAT-0016):** `/admin/sensores` lista el catálogo con **paginación keyset**
+del backend y ofrece alta/edición/baja sólo a `ADMIN` (el backend sigue siendo la autoridad: el
+`RolGuard` del registry rechaza a `VIEWER`). El formulario valida en cliente lo mismo que el backend
+(rangos coherentes `normal ⊂ warning ⊂ critical`, histéresis ≥ 0, frecuencia ≥ 1) y **siempre** muestra
+los errores del servidor por `code`, ubicándolos en el campo cuando el código o el mensaje lo
+permiten; la edición envía **sólo** el subset de configuración (el `PUT` rechaza campos fuera del
+DTO) y ninguna escritura se reintenta automáticamente (un reintento podría duplicar el alta). La baja
+es **lógica** y con confirmación explícita. El **panel de demo** (control del `data-simulator`) está
+**apagado por default**: sólo aparece si `VITE_SIMULADOR_URL` está configurada, porque el simulador no
+tiene ruta en el gateway (FEAT-0008 BR-010).
+
 **Empaquetado (BR-010):** el stage de Node del `Dockerfile` del gateway construye el SPA y lo copia a
 `/app/static/` (`GATEWAY_STATIC_LOCATION=file:/app/static/`), así que no hay que reempaquetar el jar;
 para correr local sin Docker hay un profile opt-in (`mvn -o package -Pcon-spa`) que copia `web/dist`.

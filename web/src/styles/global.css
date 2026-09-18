@@ -576,3 +576,107 @@ a {
   color: var(--sev-normal);
   font-weight: 600;
 }
+
+/* ---------- administración y demo (FEAT-0016) ---------- */
+.tabla-admin {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  overflow: hidden;
+}
+
+.tabla-admin th,
+.tabla-admin td {
+  text-align: left;
+  padding: var(--espacio-2);
+  border-bottom: 1px solid var(--color-borde);
+  font-size: 0.9rem;
+  vertical-align: top;
+}
+
+.tabla-admin thead th {
+  background: var(--color-fondo);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.celda-acciones {
+  display: flex;
+  gap: var(--espacio-1);
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.acciones-tabla {
+  margin-top: var(--espacio-3);
+}
+
+.grilla-formulario {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--espacio-3);
+  margin-bottom: var(--espacio-3);
+}
+
+.grupo-rango {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  padding: var(--espacio-2);
+  margin: 0;
+}
+
+.grupo-rango legend {
+  font-size: 0.8rem;
+  color: var(--color-texto-suave);
+  padding: 0 var(--espacio-1);
+}
+
+.formulario-sensor .campo select {
+  font: inherit;
+  padding: var(--espacio-2);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+}
+
+.error-campo {
+  color: var(--sev-critical);
+  font-weight: 600;
+}
+
+.acciones-formulario {
+  display: flex;
+  gap: var(--espacio-2);
+  flex-wrap: wrap;
+  margin-top: var(--espacio-2);
+}
+
+.dialogo-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+  padding: var(--espacio-4);
+}
+
+.dialogo {
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  padding: var(--espacio-5);
+  max-width: 520px;
+  box-shadow: var(--sombra);
+}
+
+.panel-demo {
+  margin-top: var(--espacio-4);
+  padding: var(--espacio-3);
+  border: 1px dashed var(--color-borde);
+  border-radius: var(--radio);
+  background: var(--color-superficie);
+}

@@ -1,9 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from '../../App'
-import { conLogin, conResumen, restaurarLogin, restaurarResumen, sensoresDeEjemplo, TOKEN_VALIDO } from '../../test/servidor'
+import {
+  conLogin,
+  conResumen,
+  instalarWebSocketFalso,
+  restaurarLogin,
+  restaurarResumen,
+  sensoresDeEjemplo,
+  TOKEN_VALIDO,
+} from '../../test/servidor'
 import { HttpResponse } from 'msw'
 
 /**
@@ -12,6 +20,10 @@ import { HttpResponse } from 'msw'
  * `dangerouslySetInnerHTML`, datos del backend renderizados como texto y `VIEWER` sin acciones de
  * escritura.
  */
+beforeEach(() => {
+  instalarWebSocketFalso()
+})
+
 function renderApp(ruta = '/mapa') {
   return render(
     <MemoryRouter initialEntries={[ruta]}>

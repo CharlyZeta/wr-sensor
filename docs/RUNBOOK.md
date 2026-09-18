@@ -44,9 +44,9 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 99 | 42 | 141 |
-| **Total** | **338** | **120** | **458** |
-| `web/` (SPA) | 51 | — | 51 |
+| `api-gateway` | 104 | 42 | 146 |
+| **Total** | **343** | **120** | **463** |
+| `web/` (SPA) | 63 | — | 63 |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
 > `mvn -o test -Dtest='*IT'` y requieren Docker Desktop (los de `api-gateway` no: usan
@@ -481,6 +481,31 @@ El feed es **efímero**: las alertas no se persisten (el historial consultable e
 así que la UI avisa que se pierden al recargar. Una **normalización** (bajada de severidad) se
 distingue y **no** cuenta como crítica no leída. Al recibir una alerta, el mapa refresca el resumen
 **una vez por ráfaga** (no una vez por alerta) para no agotar el cupo de `lectura`.
+
+### Administración y demo (FEAT-0016)
+
+La administración de sensores (`/admin/sensores`, `/sensores/nuevo`, `/sensores/{id}/editar`) es sólo
+para `ADMIN`: usa el CRUD del registry tal como está (alta con todos los campos, edición con el
+**subset** de configuración, baja **lógica**) y muestra los errores por `code`
+(`SENSOR_CODE_DUPLICATED` se marca en el campo `codigo`; otros códigos, en el resumen del formulario).
+
+| Variable | Default | Para qué |
+|---|---|---|
+| `VITE_SIMULADOR_URL` | *(vacío)* | base del `data-simulator` para el **panel de demo**. Vacío ⇒ el panel no se muestra |
+
+El **panel de demo** existe sólo porque el simulador **no tiene ruta en el gateway** (FEAT-0008
+BR-010). Para usarlo en desarrollo hay que levantar el override y apuntar la variable:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# en web/.env.local
+# VITE_SIMULADOR_URL=http://localhost:8081
+```
+
+Reglas del CRUD que conviene tener presentes al probarlo: las **escrituras no se reintentan solas**
+(ante `429` se avisa, se conservan los datos y se espera el `Retry-After`), la baja pide confirmación
+y dice "queda INACTIVO" (no "se elimina"), y un sensor `INACTIVO` no ofrece edición: se reactiva
+cambiando su estado a `ACTIVO`.
 
 ### Servirlo desde el gateway
 

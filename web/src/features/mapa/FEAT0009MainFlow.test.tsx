@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from '../../App'
-import { conResumen, restaurarResumen, sensoresDeEjemplo } from '../../test/servidor'
+import { conResumen, instalarWebSocketFalso, restaurarResumen, sensoresDeEjemplo } from '../../test/servidor'
 import { HttpResponse } from 'msw'
 
 /**
@@ -11,6 +11,10 @@ import { HttpResponse } from 'msw'
  * sesión, mapa con el resumen y estados de la UI. Los tests usan MSW, así que ejercitan el cliente
  * HTTP real (códigos de error y correlación incluidos).
  */
+beforeEach(() => {
+  instalarWebSocketFalso()
+})
+
 function renderApp(ruta = '/mapa') {
   return render(
     <MemoryRouter initialEntries={[ruta]}>
@@ -60,10 +64,19 @@ describe('FEAT-0009 · Alternative Flows', () => {
     )
     const usuario = userEvent.setup()
     renderApp('/mapa')
-    await entrar(usuario)
 
-    expect(await screen.findByRole('heading', { name: 'WR-Sensor' })).toBeInTheDocument()
-    expect(window.sessionStorage.getItem('wrsensor.sesion')).toBeNull()
+    // Se hace el login a mano (no con `entrar()`, que espera el mapa): acá el resumen responde 401,
+    // así que el SPA cierra la sesión y vuelve al login sin llegar a pintar el mapa.
+    await usuario.type(await screen.findByLabelText('Usuario'), 'admin@wrsensor.local')
+    await usuario.type(screen.getByLabelText('Contraseña'), 'Admin123!')
+    await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
+
+    // El estado final observable es doble: sesión borrada y pantalla de login otra vez.
+    await waitFor(() => expect(window.sessionStorage.getItem('wrsensor.sesion')).toBeNull())
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'WR-Sensor' })).toBeInTheDocument(),
+    )
+    expect(screen.queryByRole('heading', { name: 'Mapa de sensores' })).not.toBeInTheDocument()
     restaurarResumen()
   })
 

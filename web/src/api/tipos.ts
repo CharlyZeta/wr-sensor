@@ -46,6 +46,28 @@ export type SensorResumen = {
   ultimaLectura: UltimaLectura | null
 }
 
+/**
+ * Sensor completo del registry (`GET /api/sensores`, `POST`, `PUT`): incluye la configuración que
+ * el CRUD administra (rangos, histéresis, frecuencia). Es distinto de `SensorResumen`, que es la
+ * proyección del mapa.
+ */
+export type SensorAdmin = {
+  id: string
+  codigo: string
+  nombre: string
+  tipo: string
+  latitud: number
+  longitud: number
+  unidadMedida: string
+  estado: string
+  histeresis: number
+  frecuenciaReporteSegundos: number
+  fechaInstalacion: string | null
+  rangoNormal: { min: number; max: number }
+  rangoWarning: { min: number; max: number }
+  rangoCritical: { min: number; max: number }
+}
+
 /** Lectura del histórico (`GET /api/sensores/{id}/lecturas`). */
 export type Lectura = {
   timestamp: string

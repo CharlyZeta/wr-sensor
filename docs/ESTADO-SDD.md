@@ -12,7 +12,7 @@
 
 
 
-   └── FEAT-0016: administración y demo — CRUD (ADMIN) y panel del simulador [0/31]
+
 
 🟡 APPROVED (Loop in progress)
    └── (ninguno)
@@ -29,6 +29,7 @@
    └── FEAT-0009: SPA núcleo — sesión, shell, mapa y hosting desde el gateway [32/32 ✅]
    └── FEAT-0014: detalle en vivo — lecturas por WebSocket y serie de 24 h [29/29 ✅]
    └── FEAT-0015: alertas en vivo — feed y refresco del mapa [29/29 ✅]
+   └── FEAT-0016: administración y demo — CRUD (ADMIN) y panel del simulador [31/31 ✅]
    └── FIX-0008: seguridad del punto de entrada (secreto WS, headers/CSP, hosting seguro) [24/24 ✅]
    └── FEAT-0010: data-simulator — generador de lecturas sintéticas [23/23 ✅]
    └── FEAT-0011: ingestion-service — consumo y severidad de lecturas [22/22 ✅]
@@ -42,22 +43,24 @@
    └── FIX-0006: versionado del schema de sensor.lecturas (payload v1) [31/31 ✅]
    └── FIX-0007: resiliencia del lookup de config (timeouts, breaker, cache TTL) [30/30 ✅]
 
-Total: 25 contracts | 1 in Gate (serie del frontend) | 0 in Loop | 23 resolved
-Criterios de completitud: 522/522 ✅ en los 23 resueltos (343 en FEATs + 148 en FIXes + 31 de FEAT-0008)
-                         + 31 criterios en Gate: FEAT-0016
+Total: 25 contracts | 0 in Gate | 0 in Loop | 24 resolved
+Criterios de completitud: 553/553 ✅ en los 24 resueltos (374 en FEATs + 148 en FIXes + 31 de FEAT-0008)
+                         pendientes en Gate: ninguno
 ```
 
 > **HO-Gate pendiente (humano):**
 > 1. **Cierre del resultado de FEAT-0008** (Loop completo, 31/31): el hallazgo que amerita revisión está
 >    en ADR-0019 (el primer CORS rechazaba el mismo origen y rompía login + WS del SPA servido por el
 >    gateway) y en `docs/REGISTRO-SDD.md` §Fixes ítem 11.
-> 2. **Revisión del resultado de la serie del frontend**: `FEAT-0009` (32/32) y `FIX-0008` (24/24)
->    están cerrados por orden de ejecución del humano (2026-09-15) y esperan su validación; el
->    hallazgo que amerita revisión es el **S1** de la revisión de seguridad (el gateway aceptaba
->    tokens forjables con el secreto de desarrollo) — ADR-0020.
-> 3. **Aprobación del Gate de la última parte** (`FEAT-0016` administración y demo, en DRAFT con
->    recomendaciones marcadas "sujeto a HO-Gate"): pasar `Status: APPROVED` + `Mode: LOOP`. Es
->    independiente y depende sólo de `FEAT-0009` (cerrado).
+> 2. **Validación de la serie del frontend completa** (`FEAT-0009` 32/32, `FEAT-0014` 29/29,
+>    `FEAT-0015` 29/29, `FEAT-0016` 31/31) y de `FIX-0008` (24/24): cerrados por orden de ejecución del
+>    humano (2026-09-15). Los hallazgos que ameritan su revisión son el **S1** de la revisión de
+>    seguridad (el gateway aceptaba tokens forjables con el secreto de desarrollo — ADR-0020) y el bug
+>    de CORS de ADR-0019.
+> 3. **Decisiones de stack del SPA** registradas en ADR-0021 (Vite/React/TS, `sessionStorage`, hosting
+>    desde el gateway), todas tomadas por el orquestador "sujetas a HO-Gate".
+> 4. **Fase C** (agregados/continuous aggregates, export CSV, historial de alertas) y los escenarios
+>    **e2e de Playwright** quedan como trabajo posterior: no hay contract abierto.
 
 ## Detalle por contract
 
@@ -86,7 +89,7 @@ Criterios de completitud: 522/522 ✅ en los 23 resueltos (343 en FEATs + 148 en
 | FEAT-0009 | **SPA (`web/`)** — sesión, shell, mapa y hosting desde el gateway | 32/32 ✅ | ADR-0021 · `web/` 22 tests + `FEAT0009HostingIT` 5 + `FEAT0009DocsTest` 5 |
 | FEAT-0014 | **SPA (`web/`)** — detalle en vivo (WS lecturas + serie 24 h) | 29/29 ✅ | ADR-0021 · `web/` 15 tests + `FEAT0014DocsTest` 5 |
 | FEAT-0015 | **SPA (`web/`)** — alertas en vivo (feed + refresco del mapa) | 29/29 ✅ | ADR-0021 · `web/` 14 tests + `FEAT0015DocsTest` 5 |
-| FEAT-0016 | **SPA (`web/`)** — administración y demo (CRUD + simulador) | 0/31 🔴 Gate | contract `contracts/FEAT-0016.md` (parte 4 de 4) |
+| FEAT-0016 | **SPA (`web/`)** — administración y demo (CRUD + simulador) | 31/31 ✅ | ADR-0021 · `web/` 12 tests + `FEAT0016DocsTest` 5 |
 
 > Los conteos exactos de tests son **por módulo** (tabla siguiente): un mismo archivo de test puede
 > cubrir criterios de más de un contract, así que atribuir tests a un contract individual sería
@@ -102,9 +105,9 @@ Criterios de completitud: 522/522 ✅ en los 23 resueltos (343 en FEATs + 148 en
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 99 | 42 | 141 |
-| **Total** | **338** | **120** | **458** |
-| `web/` (SPA) | 51 | — | 51 |
+| `api-gateway` | 104 | 42 | 146 |
+| **Total** | **343** | **120** | **463** |
+| `web/` (SPA) | 63 | — | 63 |
 
 Cómo reproducirlo:
 
@@ -139,7 +142,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
 
 ### Estado del backlog
 
-- **En Gate (esperando HO-Gate)**: la **última parte de la serie del frontend** (1–3 ya cerradas).
+- **En Gate: nada.** La serie del frontend está cerrada completa (4/4).
   División por capacidad funcional aprobada por el humano 2026-09-14:
 
   | Parte | Contract | Alcance | Criterios | Estado |
@@ -147,9 +150,9 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
   | 1 | `FEAT-0009` | SPA núcleo: sesión, shell, cliente API, **mapa** (`GET /api/sensores/resumen`) y **hosting desde el gateway** | 32 | ✅ RESOLVED (2026-09-15) |
   | 2 | `FEAT-0014` | detalle en vivo: `WS /ws/sensores/{id}?token=` + serie de 24 h (histórico keyset) | 29 | ✅ RESOLVED (2026-09-15) |
   | 3 | `FEAT-0015` | alertas en vivo: `WS /ws/alertas?token=`, feed, contador y refresco del mapa con debounce | 29 | ✅ RESOLVED (2026-09-15) |
-  | 4 | `FEAT-0016` | administración (CRUD ADMIN, errores por `code`) y panel de demo del simulador (Fase B) | 31 | 🔴 Gate |
+  | 4 | `FEAT-0016` | administración (CRUD ADMIN, errores por `code`) y panel de demo del simulador (Fase B) | 31 | ✅ RESOLVED (2026-09-15) |
 
-  `FEAT-0016` depende sólo de `FEAT-0009` (cerrada). Queda pendiente la Fase C (agregados, export, historial de alertas), sin contract.
+  Queda pendiente la Fase C (agregados, export, historial de alertas) y los escenarios e2e de Playwright, sin contract.
 - **Contracts de fix pendientes: ninguno** (`FIX-0001..FIX-0008` RESOLVED, 8/8).
 - **Documentos de backlog promovidos**: `docs/FIX-0002-schema-versionado-lecturas.md` → `FIX-0006`,
   `docs/FIX-0003..0004` → `FIX-0003`/`FIX-0004`, `docs/FIX-0006-particionamiento-consumers.md` →
@@ -170,8 +173,8 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
   6. Caché del resumen (`GET /api/sensores/resumen`) en Redis — fuera de alcance de FEAT-0008.
   7. Autenticación de los REST **en el gateway** (hoy valida sólo el upgrade WS) — FEAT-0008 acota
      esa brecha a los WS.
-- **Roadmap v1 restante**: la **serie del frontend** (`FEAT-0009` → `FEAT-0014` → `FEAT-0015` →
-  `FEAT-0016`, hoy en Gate), después Fase C (agregados + historial de alertas), Redis para `/actual`
+- **Roadmap restante**: la serie del frontend está **completa** (`FEAT-0009` → `FEAT-0014` → `FEAT-0015` →
+  `FEAT-0016`, todos RESOLVED); después Fase C (agregados + historial de alertas), e2e de Playwright, Redis para `/actual`
   y caché del resumen, y manifiestos K8s (documentación).
 
 ### Notas de entorno (relevantes para reproducir)

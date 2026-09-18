@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Aviso } from './componentes/Estados'
+import { AdminFormPage } from './features/admin/AdminFormPage'
+import { AdminSensoresPage } from './features/admin/AdminSensoresPage'
 import { AlertasPage } from './features/alertas/AlertasPage'
 import { DetallePage } from './features/detalle/DetallePage'
 import { LoginPage } from './features/login/LoginPage'
@@ -34,6 +36,11 @@ export function App(): React.JSX.Element {
         <Route element={<Layout />}>
           <Route path="/mapa" element={<MapaPage />} />
           <Route path="/alertas" element={<AlertasPage />} />
+          {/* Las rutas administrativas se declaran antes que el detalle para que «nuevo» no se
+              interprete como un id de sensor. */}
+          <Route path="/sensores/nuevo" element={<AdminFormPage modo="alta" />} />
+          <Route path="/sensores/:id/editar" element={<AdminFormPage modo="edicion" />} />
+          <Route path="/admin/sensores" element={<AdminSensoresPage />} />
           <Route path="/sensores/:id" element={<DetallePage />} />
         </Route>
         <Route path="/" element={<Navigate to="/mapa" replace />} />

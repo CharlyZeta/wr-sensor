@@ -55,6 +55,15 @@ export const config = {
   alertasMax: entero(import.meta.env.VITE_ALERTAS_MAX, 200, 10),
   /** Agrupación de una ráfaga de alertas para no pedir el resumen una vez por alerta. */
   alertasDebounceMs: entero(import.meta.env.VITE_ALERTAS_DEBOUNCE_MS, 2_000, 100),
+
+  // ---- administración y demo (FEAT-0016) ----
+
+  /**
+   * Base del `data-simulator` para el panel de demo. **Vacío por default ⇒ el panel no se muestra**:
+   * el simulador no tiene ruta en el gateway (FEAT-0008 BR-010) y sólo se habilita en desarrollo
+   * apuntando a su puerto publicado por `docker-compose.dev.yml` (p. ej. `http://localhost:8081`).
+   */
+  simuladorUrl: (import.meta.env.VITE_SIMULADOR_URL ?? '').trim().replace(/\/$/, ''),
 } as const
 
 /** URL absoluta o relativa de un path de la API, respetando `VITE_API_BASE`. */

@@ -61,7 +61,7 @@ sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico key
 
 Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
 paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
-`application.yml`, tests trazables a los contracts (BR/AC/AF) — **509 verdes** (458 backend + 51 del SPA).
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **526 verdes** (463 backend + 63 del SPA).
 Punto de entrada único con **CORS configurable y WebSocket autenticado** (`FEAT-0008`).
 Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 
@@ -111,11 +111,11 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FEAT-0009` | SPA núcleo: sesión, shell, mapa y hosting desde el gateway | ✅ RESOLVED | 22 (web) · IT 10 |
 | `FEAT-0014` | SPA: detalle en vivo (WS de lecturas + serie de 24 h) | ✅ RESOLVED | 15 (web) · docs 5 |
 | `FEAT-0015` | SPA: alertas en vivo (feed + refresco del mapa) | ✅ RESOLVED | 14 (web) · docs 5 |
-| `FEAT-0016` | SPA: administración y demo (CRUD ADMIN + simulador) | 🟡 DRAFT (Gate) | 31 criterios — parte 4 de 4 |
+| `FEAT-0016` | SPA: administración y demo (CRUD ADMIN + simulador) | ✅ RESOLVED | 12 (web) · docs 5 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 20 · `ingestion-service` 121 ·
-`alerting-service` 12 · `query-api` 41 · `api-gateway` 141 → **458 tests** del backend (JUnit 5; ITs
-con Testcontainers — los del gateway usan downstreams stub) **+ 51 del SPA** (`web/`, Vitest + RTL +
+`alerting-service` 12 · `query-api` 41 · `api-gateway` 146 → **463 tests** del backend (JUnit 5; ITs
+con Testcontainers — los del gateway usan downstreams stub) **+ 63 del SPA** (`web/`, Vitest + RTL +
 MSW). Detalle por módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e del SPA.
 
 ---

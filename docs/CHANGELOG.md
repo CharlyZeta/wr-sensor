@@ -7,6 +7,35 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FEAT-0016] — 2026-09-15 — Administración y demo: CRUD de sensores y panel del simulador
+
+`contracts/FEAT-0016.md` (31/31 ✅) · parte 4 de 4 de la serie del frontend · **sin cambios de
+backend** (usa el CRUD de FEAT-0001..0005 y el control del `data-simulator` por su puerto de dev).
+Suite: **`web/` 63 tests** (+12).
+
+**Agregado:**
+
+- **Listado administrativo** (`BR-001/BR-008`): paginación **keyset** del backend, sin N+1, con alta,
+  edición y baja visibles **sólo para `ADMIN`** (a `VIEWER` no se le ofrecen acciones: el guard es UX
+  y el backend sigue siendo la autoridad).
+- **Alta y edición** (`BR-002/BR-003/BR-004`): validación en cliente coherente con el backend que **no
+  la reemplaza** (rangos `normal ⊂ warning ⊂ critical`, histéresis ≥ 0, frecuencia ≥ 1), errores del
+  servidor mostrados por `code` y ubicados en el campo cuando es posible (`SENSOR_CODE_DUPLICATED` →
+  `codigo`), sin perder nunca lo cargado; la edición manda **sólo** el subset de configuración porque
+  el `PUT` rechaza cualquier otro campo.
+- **Baja lógica con confirmación** (`BR-005`): el diálogo dice "queda INACTIVO, no se elimina" y
+  explica cómo reactivarlo; un sensor `INACTIVO` no ofrece edición.
+- **Sin reintentos en escrituras** (`BR-006`): ante `429` se avisa con el `Retry-After`, se conservan
+  los datos y **no** se reenvía la operación (test que verifica que sólo hubo un intento).
+- **Panel de demo configurable** (`BR-007/BR-010`): control del simulador que **sólo aparece** si
+  `VITE_SIMULADOR_URL` está configurada, porque el simulador no tiene ruta en el gateway.
+
+**Infra de tests (endurecimiento):** el doble de `WebSocket` pasó a ser **compartido** en
+`src/test/servidor.ts` (antes cada suite tenía el suyo, con divergencias); Vitest corre los archivos
+**en serie** (`fileParallelism: false`) porque las suites renderizan el shell completo y en paralelo
+se peleaban por los temporizadores de jsdom, lo que hacía intermitente la aserción de
+`401 → redirect al login`. Con eso la evidencia es reproducible.
+
 ## [FEAT-0015] — 2026-09-15 — Alertas en vivo: feed confirmado y refresco del mapa
 
 `contracts/FEAT-0015.md` (29/29 ✅) · parte 3 de 4 de la serie del frontend · **sin cambios de

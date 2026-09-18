@@ -55,6 +55,8 @@ function Marco({
         <nav className="shell-nav" aria-label="Navegación principal">
           <Link to="/mapa">Mapa</Link>
           <Link to="/alertas">Alertas{noLeidas > 0 ? <span className="badge-no-leidas"> {noLeidas}</span> : null}</Link>
+          {/* AF-06: la administración sólo se ofrece a ADMIN (el backend sigue siendo la autoridad). */}
+          {esAdmin ? <Link to="/admin/sensores">Sensores</Link> : null}
         </nav>
         <div className="shell-usuario">
           <span className="chip-rol" title={`Rol: ${rol}`}>

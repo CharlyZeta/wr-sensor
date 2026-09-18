@@ -42,6 +42,12 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: false,
     include: ['src/**/*.test.{ts,tsx}'],
+    // Los archivos corren en un solo worker: los suites renderizan el shell completo (MSW + dobles de
+    // WebSocket) y en paralelo se pelean por los temporizadores de jsdom, lo que hacía flaky una
+    // aserción sensible al tiempo (401 → redirect al login). La suite es chica: serializar es barato
+    // y hace la evidencia reproducible.
+    fileParallelism: false,
+    testTimeout: 15_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
