@@ -105,7 +105,9 @@ gateway:
     content-security-policy: "${GATEWAY_CSP:default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org; font-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'}"
     permisos-politica: geolocation=(), camera=(), microphone=()
     rutas-cliente: [/login, /mapa, /sensores]
-    static-location: static/
+    # Origen de los estáticos del SPA: `classpath:` (build copiado a resources/static) o `file:`
+    # (imagen Docker, que monta el SPA en /app/static sin reempaquetar el jar).
+    static-location: ${GATEWAY_STATIC_LOCATION:classpath:static/}
     cache-assets-segundos: ${GATEWAY_CACHE_ASSETS:31536000}
     cache-estaticos-segundos: ${GATEWAY_CACHE_ESTATICOS:3600}
     hsts: ${GATEWAY_HSTS:true}

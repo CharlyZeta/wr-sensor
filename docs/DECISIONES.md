@@ -291,3 +291,33 @@ del SPA que la revisión listó como A2–A5/A7–A15 (sinks de XSS, logout ató
 de WS), que se cubren en los contracts `FEAT-0009`/`FEAT-0014`/`FEAT-0015`/`FEAT-0016`; y se
 documenta que CSRF no aplica (no hay cookies: el rol se resuelve sólo desde `Authorization`).
 
+## ADR-0021 · Stack, sesión y empaquetado del SPA (FEAT-0009)
+**Contexto:** con los habilitadores del backend cerrados (`FEAT-0008`) y el punto de entrada
+endurecido (`FIX-0008`), había que elegir el stack del frontend, dónde vive el token, cómo se sirve el
+build desde el gateway y qué se testea. El `stack.md` fija React y Leaflet (o MapLibre, ya descartado
+por el humano a favor de Leaflet) pero no dice nada de build, estado, estilos ni tests.
+**Decisión (Gate aprobado por el humano 2026-09-15; detalles técnicos del orquestador):**
+**`web/`** en la raíz del repo con **Vite 7 + React 19 + TypeScript estricto** (no es módulo Maven: el
+`mvn -o` del backend queda intacto); **CSS propio con tokens** (una única fuente de verdad de la
+paleta de severidad, sin Tailwind ni librería de componentes); **react-router + hooks propios sobre
+`fetch`** (sin TanStack Query: se necesita control explícito del cupo y de `Retry-After`);
+**el token en `sessionStorage`** (sobrevive al F5, muere al cerrar la pestaña; nunca `localStorage`,
+cookies ni URL); **el SPA lo sirve el gateway** con la resolución segura de `FIX-0008` y el build
+copiado por un **stage de Node del Dockerfile** (en local, profile opt-in `con-spa` que sólo copia
+`web/dist`); **dev con proxy de Vite** (`/api`, `/ws` → :8084), con lo que desarrollar no requiere
+CORS y las URLs relativas son idénticas a producción; **tests con Vitest + Testing Library + MSW** y
+Playwright para e2e, declarados como suite propia en el RUNBOOK §2.
+**Alternativas descartadas:** Next.js u otro meta-framework (no hay SSR ni rutas de servidor que
+aprovechar y rompería el hosting estático desde el gateway); Tailwind (una dependencia más y la
+paleta de severidad dejaría de tener un único dueño); TanStack Query (innecesario para dos endpoints
+y esconde el control del cupo); token en `localStorage` (persiste demasiado para un panel de
+operaciones) o en memoria (obliga a re-loguear en cada recarga sin ganancia real); build del SPA
+invocado desde Maven (rompería el build offline del backend); reempaquetar el jar con el SPA adentro
+(más frágil que montar `/app/static/` y configurar `GATEWAY_STATIC_LOCATION`).
+**Consecuencias:** el proyecto gana una suite de tests de frontend independiente de Maven (más un
+e2e con Playwright), el gateway pasa a ser también el servidor de estáticos (con el contrato de la
+API intacto, verificado por ITs) y aparece una dependencia de red en el build del frontend que está
+aislada en su propio stage/profile. Los datos del backend se tratan como **no confiables**: se
+validan y se renderizan como texto, y en Leaflet los popups/íconos se construyen con nodos del DOM
+(ESLint prohíbe `dangerouslySetInnerHTML`/`innerHTML` y `console.*` en el código de producción).
+

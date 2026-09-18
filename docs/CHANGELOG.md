@@ -7,6 +7,42 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FEAT-0009] — 2026-09-15 — SPA núcleo: sesión, shell, mapa de sensores y hosting desde el gateway
+
+`contracts/FEAT-0009.md` (32/32 ✅) · ADR-0021 · suites nuevas: **`web/` 22 unit (Vitest+RTL+MSW)** ·
+`api-gateway` +10 (5 hosting IT + 5 docs) · parte 1 de 4 de la serie del frontend.
+
+**Agregado — SPA (`web/`, Vite 7 + React 19 + TypeScript estricto):**
+
+- **Sesión** (`BR-002/AF-01/AF-07`): token **sólo** en `sessionStorage` (nunca `localStorage`,
+  cookies ni URL), expiración programada con margen y **un único cierre atómico** para logout, `401`
+  y expiración; tras re-loguear se vuelve a la ruta que el usuario había pedido.
+- **Cliente API** (`BR-003/BR-004`): URLs relativas con base configurable, `credentials: 'omit'`,
+  `X-Correlation-Id` por request, errores traducidos por `code` a es-AR con `Retry-After` respetado, y
+  detalle técnico (status/code/correlación) para soporte. Un `code` desconocido se muestra tal cual.
+- **Mapa** (`BR-006/BR-007/AF-09`): Leaflet con tiles configurables, **una sola** request
+  (`GET /api/sensores/resumen`), marcadores e íconos desde un catálogo propio por severidad, popups
+  construidos con **nodos del DOM** y degradación usable si los tiles no cargan.
+- **Cupo del gateway** (`BR-005/AF-03`): un único timer por vista, pausa en pestaña oculta, y pausa
+  con cuenta atrás al recibir `429` — sin ráfagas de reintentos.
+- **Estados y accesibilidad** (`BR-008`): carga/error/vacío siempre visibles, textos es-AR,
+  severidad nunca sólo por color, foco visible y navegación por teclado.
+- **Hosting** (`BR-001/BR-010`): el build se sirve desde el gateway (`classpath:static/` o
+  `file:/app/static/` vía `GATEWAY_STATIC_LOCATION`), con el stage de Node del Dockerfile
+  construyéndolo en la imagen y un profile opt-in (`con-spa`) para correr local sin Docker. El
+  contrato de la API queda intacto (`/api/**` sigue siendo `404 ROUTE_NOT_FOUND`).
+
+**Seguridad (requisitos A2–A5/A7/A9/A10/A12/A13 de la revisión de `FIX-0008`):** los datos del
+backend se tratan como no confiables (UUID, coordenadas finitas y severidad del catálogo se validan;
+todo se renderiza como texto); ESLint **prohíbe** `dangerouslySetInnerHTML`/`innerHTML` y `console.*`;
+el token no se persiste fuera de `sessionStorage` ni termina en la URL o en mensajes de error; el dev
+server escucha sólo en `localhost` y el proxy evita CORS. Tests específicos: XSS con nombre hostil,
+`VIEWER` sin acciones de escritura, sesión vencida/malformada descartada, logout que limpia el storage.
+
+**Fuera de alcance (declarado, va en las partes 2–4):** detalle en vivo con WS y serie de 24 h
+(`FEAT-0014`), feed de alertas (`FEAT-0015`), CRUD y panel de demo (`FEAT-0016`), e2e Playwright
+completo y Fase C (agregados, export, historial de alertas).
+
 ## [FIX-0008] — 2026-09-15 — Endurecimiento del punto de entrada (revisión de seguridad)
 
 `contracts/FIX-0008.md` (24/24 ✅) · ADR-0020 · informe de seguridad en `.sdd/runs/FIX-0008-20260915-*.md` ·

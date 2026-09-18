@@ -132,8 +132,12 @@ services:
       rabbitmq: { condition: service_healthy }
 
   # Punto de entrada unico (FEAT-0007): enruta REST y WS, aplica rate limiting y correlacion.
+  # FEAT-0009: la imagen tambien construye el SPA (stage de Node) y lo sirve desde /app/static/,
+  # por eso el contexto de build es la raiz del repo (necesita ver web/).
   api-gateway:
-    build: ./services/api-gateway
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
     ports: ["8084:8084"]
     environment:
       REGISTRY_URL: http://sensor-registry:8080
@@ -144,6 +148,8 @@ services:
       # DEBE recibir el mismo secreto que el registry. Sin esta variable caía al default de
       # desarrollo (público en el repo) y cualquiera podía forjar un token ADMIN/VIEWER.
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-wrsensor-dev-secret-2026-no-usar-en-prod}
+      # FEAT-0009 BR-010: el SPA viene del stage de Node y se monta fuera del jar.
+      GATEWAY_STATIC_LOCATION: file:/app/static/
     depends_on:
       sensor-registry: { condition: service_started }
       query-api: { condition: service_started }

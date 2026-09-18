@@ -49,4 +49,50 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+          FEAT-0009 BR-010: empaquetado del SPA en los estáticos del gateway.
+
+          Es un profile **opt-in** a propósito: el build del SPA lo hace npm (necesita red), así que
+          el ciclo `mvn -o test` del backend queda intacto. Se activa sólo cuando se quiere el SPA
+          dentro del jar:
+
+            cd web && npm ci && npm run build
+            mvn -o -f services/api-gateway/pom.xml package -Pcon-spa
+
+          No invoca npm desde Maven (eso rompería la propiedad offline); sólo copia `web/dist`, que
+          ya tiene que existir. En Docker el empaquetado lo hace el stage de Node del Dockerfile, así
+          que este profile es para correr el gateway localmente sin contenedores.
+        -->
+        <profile>
+            <id>con-spa</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copiar-spa</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${project.basedir}/../../web/dist</directory>
+                                            <filtering>false</filtering>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

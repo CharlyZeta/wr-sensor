@@ -267,7 +267,51 @@ Toda respuesta de error: `{"code":"...","message":"..."}`. Familia
 `query-api`: `SENSOR_INVALID_*`, `INVALID_RANGE`, `SENSOR_NOT_FOUND`, `UNAUTHENTICATED`,
 `INSUFFICIENT_ROLE` y `REGISTRY_UNAVAILABLE` (FEAT-0008, `502`).
 
-## 6. Frontend / infra futura
+## 6. Frontend (`web/`) — FEAT-0009
+
+SPA del operador en **`web/`** (Vite 7 + React 19 + TypeScript estricto), servido por el gateway
+(mismo origen) desde `classpath:/static/` o `file:/app/static/`.
+
+```
+web/
+├── index.html                 # única página; el router resuelve las rutas del cliente
+├── vite.config.ts             # dev: proxy /api y /ws al gateway :8084 (sin CORS); test: vitest+jsdom
+├── package.json / package-lock.json   # lockfile versionado (npm ci reproducible)
+└── src/
+    ├── config.ts              # lectura de VITE_* (base de API, refresh, tiles, locale) + urlApi/urlWebSocket
+    ├── api/                   # cliente fetch (errores por code, Retry-After, correlación) · tipos · auth
+    ├── dominio/               # severidad (fuente única: color+etiqueta+símbolo) · formato (Intl es-AR)
+    ├── sesion/                # contexto de sesión (token en sessionStorage, expiración, cierre atómico)
+    ├── hooks/                 # useResumen (refresco, pausa por 429, pausa en pestaña oculta)
+    ├── features/              # login · mapa (Leaflet + lista) · detalle (FEAT-0014)
+    ├── componentes/           # estados (carga/error/vacío) y avisos
+    ├── rutas/Layout.tsx       # shell + guard de sesión
+    └── styles/                # tokens.css (paleta de severidad) + global.css
+```
+
+**Decisiones que explican la forma del código:**
+
+- **Mismo origen siempre**: la API se consume con rutas relativas (`urlApi`) y base configurable
+  (`VITE_API_BASE`, vacía por default). En dev el proxy de Vite evita CORS y reproduce el
+  comportamiento de producción; el dev server escucha sólo en `localhost`.
+- **El token vive en `sessionStorage`** (nunca `localStorage`, cookies ni URL) y hay **un único**
+  cierre de sesión atómico para logout, `401` y expiración.
+- **Los errores se muestran por `code`** con diccionario es-AR; el status y el `X-Correlation-Id`
+  quedan en un bloque técnico. Un `code` desconocido se muestra tal cual.
+- **Los datos del backend son no confiables**: se validan (UUID, coordenadas finitas, severidad del
+  catálogo) y se renderizan **como texto**. En Leaflet —que usa `innerHTML` por dentro— los popups e
+  íconos se construyen con **nodos del DOM** y un catálogo propio por severidad, nunca con strings
+  armados con datos. ESLint lo verifica (`no-restricted-syntax` + `no-console`).
+- **Cupo del gateway respetado**: un solo timer por vista, pausa en pestaña oculta y `Retry-After`
+  respetado ante `429` (la clase `lectura` es 120/min).
+
+**Empaquetado (BR-010):** el stage de Node del `Dockerfile` del gateway construye el SPA y lo copia a
+`/app/static/` (`GATEWAY_STATIC_LOCATION=file:/app/static/`), así que no hay que reempaquetar el jar;
+para correr local sin Docker hay un profile opt-in (`mvn -o package -Pcon-spa`) que copia `web/dist`.
+El build del SPA es la **única** pieza del proyecto que necesita red: el ciclo `mvn -o` del backend
+queda intacto.
+
+## 7. Infra futura
 
 - **Frontend React + Leaflet** (`FEAT-0009`, siguiente): Fase A = login + mapa con el
   resumen (`GET /api/sensores/resumen`) + detalle en vivo por WS + feed de alertas +

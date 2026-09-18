@@ -126,15 +126,32 @@ public class ServidorSpa implements HandlerFunction<ServerResponse> {
     }
 
     private java.util.Optional<Resource> recurso(String relativo) {
-        Resource r = new ClassPathResource(cfg.staticLocationOrDefault() + relativo);
+        Resource r = raiz(relativo);
         try {
-            return r.exists() && r.isReadable() && !r.getFile().isDirectory()
+            return r.exists() && r.isReadable() && r.isFile()
                     ? java.util.Optional.of(r)
                     : java.util.Optional.empty();
         } catch (Exception e) {
             // Un directorio dentro de un jar no es "File": se trata como no servible.
             return java.util.Optional.empty();
         }
+    }
+
+    /**
+     * Raíz de los estáticos (FIX-0008 BR-005 / FEAT-0009 BR-010): `classpath:` para el jar (el SPA
+     * copiado a `resources/static/`) y `file:` para la imagen Docker, que lo monta en `/app/static/`
+     * sin reempaquetar el artefacto. Cualquier otro esquema es un error de configuración.
+     */
+    private Resource raiz(String relativo) {
+        String ubicacion = cfg.staticLocationOrDefault();
+        if (ubicacion.startsWith("file:")) {
+            String base = ubicacion.substring("file:".length());
+            String separador = base.endsWith("/") ? "" : "/";
+            return new org.springframework.core.io.FileSystemResource(base + separador + relativo);
+        }
+        String base = ubicacion.startsWith("classpath:") ? ubicacion.substring("classpath:".length())
+                : ubicacion;
+        return new ClassPathResource(base + relativo);
     }
 
     private Mono<ServerResponse> servir(Resource recurso) {
@@ -156,7 +173,7 @@ public class ServidorSpa implements HandlerFunction<ServerResponse> {
     }
 
     private Mono<ServerResponse> indice(ServerWebExchange exchange) {
-        Resource indice = new ClassPathResource(cfg.staticLocationOrDefault() + INDICE);
+        Resource indice = raiz(INDICE);
         try {
             if (!indice.exists() || !indice.isReadable()) {
                 log.warn("[gateway] no hay {} en {} (el SPA no está construido)",

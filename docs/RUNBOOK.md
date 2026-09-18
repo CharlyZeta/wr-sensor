@@ -44,8 +44,9 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 84 | 37 | 121 |
-| **Total** | **323** | **115** | **438** |
+| `api-gateway` | 89 | 42 | 131 |
+| **Total** | **328** | **120** | **448** |
+| `web/` (SPA) | 22 | — | 22 |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
 > `mvn -o test -Dtest='*IT'` y requieren Docker Desktop (los de `api-gateway` no: usan
@@ -395,7 +396,81 @@ curl.exe -i "http://localhost:8084/..%2f..%2fapplication.yml"
 > El SPA **construido** se copia a `services/api-gateway/src/main/resources/static/` (carpeta generada,
 > no versionada). Sin build, esas rutas responden `404` y el gateway lo registra en el log.
 
-## 10. Orquestación SDD-GL
+## 10. SPA del operador (`web/`) — FEAT-0009
+
+El frontend vive en **`web/`** (Vite + React + TypeScript) y se **sirve desde el gateway** (mismo
+origen), así que no hay CORS ni URLs absolutas. Requiere **Node ≥ 22** (en este entorno: Node 26.3.0 /
+npm 11.16.0; no hay pnpm/yarn).
+
+### Desarrollo (proxy, sin CORS)
+
+```powershell
+# 1) el gateway tiene que estar arriba (docker compose up -d; sólo publica :8084)
+cd web
+npm ci                     # reproducible, sobre el lockfile versionado
+npm run dev                # http://localhost:5173
+```
+
+`vite.config.ts` **proxya** `/api` y `/ws` al gateway (`http://localhost:8084`, override con
+`VITE_PROXY_TARGET`): el navegador ve un único origen, igual que en producción, y por eso **no hace
+falta** habilitar CORS para desarrollar. El dev server escucha sólo en `localhost` a propósito (con
+credenciales del operador, no debe quedar expuesto en la LAN).
+
+### Tests y calidad
+
+```powershell
+cd web
+npm test               # vitest run (jsdom + Testing Library + MSW)
+npm run test:coverage  # cobertura v8
+npm run typecheck      # tsc -b (estricto)
+npm run lint           # eslint (prohíbe dangerouslySetInnerHTML/innerHTML y console.*)
+npm run build          # tsc -b && vite build → web/dist
+npm run e2e            # Playwright (requiere el stack levantado)
+```
+
+Variables del SPA (todas se **inlinean en el build**: nunca poner secretos): ver `web/.env.example`.
+Las relevantes son `VITE_API_BASE` (vacío = mismo origen), `VITE_RESUMEN_REFRESCO_MS` (default
+30 000 ms), `VITE_TILES_URL`/`VITE_TILES_ATRIBUCION`, `VITE_LOCALE`.
+
+### Servirlo desde el gateway
+
+Dos caminos, ambos con el SPA dentro del jar/imagen del gateway:
+
+```powershell
+# A) Docker (lo normal): la imagen construye el SPA en un stage de Node y lo monta en /app/static/
+docker compose up -d --build api-gateway
+curl.exe -i http://localhost:8084/            # 200 text/html (índice del SPA)
+
+# B) Local sin Docker: build del SPA + profile opt-in de Maven
+cd web; npm ci; npm run build; cd ..
+& $mvn -o -f services/api-gateway/pom.xml package -Pcon-spa   # copia web/dist a target/classes/static
+```
+
+El profile `con-spa` **sólo copia** `web/dist` (no invoca npm), así que el ciclo `mvn -o test` del
+backend sigue siendo offline: el build del SPA es la única pieza que necesita red. La ubicación de
+los estáticos es configuración (`GATEWAY_STATIC_LOCATION`): `classpath:static/` por default y
+`file:/app/static/` en la imagen Docker.
+
+### Qué verificar del hosting
+
+```powershell
+curl.exe -i http://localhost:8084/                        # 200 text/html, Cache-Control: no-store
+curl.exe -i http://localhost:8084/sensores/abc             # 200 text/html (ruta de cliente)
+curl.exe -i http://localhost:8084/api/loquesea             # 404 JSON ROUTE_NOT_FOUND (nunca HTML)
+curl.exe -i http://localhost:8084/assets/noexiste.js       # 404 (nunca 200 con el índice)
+curl.exe -sS -D - -o NUL http://localhost:8084/ | Select-String 'Content-Security-Policy'
+```
+
+Si el SPA se sirve pero la CSP bloquea el mapa, revisar `gateway.seguridad.content-security-policy`:
+el origen de los tiles tiene que estar en `img-src` (ver §9).
+
+> **e2e (Playwright)**: `npm run e2e` requiere `npx playwright install` una vez y el stack levantado
+> (`docker-compose.dev.yml` publica los puertos de los servicios, o el gateway con el SPA construido).
+
+> **NOTA:** el SPA construido se copia a `services/api-gateway/src/main/resources/static/` sólo si se
+> usa el flujo manual; esa carpeta es **generada** y no se versiona.
+
+## 11. Orquestación SDD-GL
 
 - Orquestador: `CLAUDE.md` (Claude Code) / `AGENTS.md` (Antigravity). Arranque: leer
   `contracts/[ID].md` → DRAFT/GATE → `sdd-gate`; APPROVED/LOOP → `sdd-loop`;
