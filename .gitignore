@@ -26,3 +26,9 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Frontend (FEAT-0009): artefactos de herramientas
+**/coverage/
+**/playwright-report/
+**/test-results/
+*.tsbuildinfo
