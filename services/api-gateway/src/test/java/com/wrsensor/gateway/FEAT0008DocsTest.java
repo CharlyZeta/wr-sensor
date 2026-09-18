@@ -216,7 +216,12 @@ class FEAT0008DocsTest {
         assertThat(Integer.parseInt(sumaTotal))
                 .as("el total de verdes del README es >= el del backend (incluye el SPA)")
                 .isGreaterThanOrEqualTo(Integer.parseInt(total));
-        assertThat(readme).as("el README incluye la suite del SPA").contains("+ 22 del SPA");
+        // El README declara además la suite del SPA (cuyo número cambia con cada parte de la serie:
+        // se verifica la mención, no el valor, para no convertir este test en un snapshot).
+        assertThat(grupos(readme, "\\+\\s*(\\d+) del SPA").stream().findFirst()
+                .orElseThrow(() -> new AssertionError("el README no menciona la suite del SPA")))
+                .as("el README publica la cantidad de tests del SPA")
+                .isNotBlank();
     }
 
     private static java.util.List<String> grupos(String texto, String patron) {

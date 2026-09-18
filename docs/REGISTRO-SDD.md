@@ -34,7 +34,7 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | FIX-0007 | Resiliencia del lookup de config (breaker + cache TTL) | 2026-09-14 | 2026-09-14 | ✅ 30/30 | Unit (20) · IT e2e (5) |
 | FEAT-0008 | Habilitadores del frontend: CORS, WS autenticado y resumen | 2026-09-14 | 2026-09-14 | ✅ 31/31 | Gateway unit (36 + docs 11) · query-api unit (22) · IT (20) |
 | FIX-0008 | Seguridad del punto de entrada: secreto WS, headers/CSP y hosting seguro | 2026-09-15 | 2026-09-15 | ✅ 24/24 | Unit (16) · IT (8) · gateway 84+37 |`n| FEAT-0009 | SPA núcleo: sesión, shell, mapa y hosting desde el gateway | 2026-09-15 | 2026-09-15 | ✅ 32/32 | `web/` 22 (Vitest+RTL+MSW) · gateway +10 (hosting + docs) |
-| FEAT-0014 | Detalle en vivo: WS de lecturas + serie de 24 h | *(Gate)* | — | 🔴 0/29 (Gate EXPRESS) | Pendiente de HO-Gate: parte 2 de 4 del frontend |
+| FEAT-0014 | Detalle en vivo: WS de lecturas + serie de 24 h | 2026-09-15 | 2026-09-15 | ✅ 29/29 | `web/` +15 (Vitest+RTL+MSW) · gateway +5 (docs) |
 | FEAT-0015 | Alertas en vivo: feed + refresco del mapa | *(Gate)* | — | 🔴 0/29 (Gate EXPRESS) | Pendiente de HO-Gate: parte 3 de 4 del frontend |
 | FEAT-0016 | Administración y demo: CRUD (ADMIN) + panel del simulador | *(Gate)* | — | 🔴 0/31 (Gate STRICT) | Pendiente de HO-Gate: parte 4 de 4 del frontend |
 
@@ -55,9 +55,9 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | `ingestion-service` | 88 | 33 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · `FIX0006EsquemaTest` 6 · `FIX0006ParseoTest` 8 · `FIX0006SecuenciaTest` 5 · `FIX0006DocsTest` 4 · `CircuitoResilienciaTest` 5 · `FIX0007ResilienciaTest` 10 · `FIX0007ObservabilidadTest` 2 · `FIX0007DocsTest` 3 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005 + FIX-0006 + FIX-0007) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
 | `query-api` | 33 | 8 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 · `FIX0006RealtimeTest` 4 · `FEAT0008ResumenTest` 7 · `FEAT0008RegistryAdapterTest` 15 · ITs (`FEAT0013MainFlowIT` 1 + `FEAT0008ResumenIT` 7) |
-| `api-gateway` | 89 | 42 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · `VerificadorJwtTest` 7 · `AutenticadorWsTest` 8 · `FiltroCorsTest` 11 · `FEAT0008DocsTest` 11 · ITs (`FEAT0007MainFlowIT` 16 + `FEAT0008MainFlowIT` 13) |
+| `api-gateway` | 94 | 42 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · `VerificadorJwtTest` 7 · `AutenticadorWsTest` 8 · `FiltroCorsTest` 11 · `FEAT0008DocsTest` 11 · ITs (`FEAT0007MainFlowIT` 16 + `FEAT0008MainFlowIT` 13) |
 
-**Total: 328 unit/assert + 120 ITs = 448 verdes** (backend) **+ 22 tests del SPA** (`web/`, Vitest+RTL+MSW) (JUnit 5, AssertJ, StepVerifier,
+**Total: 333 unit/assert + 120 ITs = 453 verdes** (backend) **+ 37 tests del SPA** (`web/`, Vitest+RTL+MSW) (JUnit 5, AssertJ, StepVerifier,
 WebTestClient, Testcontainers — Maven offline). Los `*IT` se corren aparte:
 `mvn -o test -Dtest='*IT'` (los de `api-gateway` no necesitan Docker: usan downstreams
 stub en proceso).

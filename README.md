@@ -61,7 +61,7 @@ sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico key
 
 Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
 paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
-`application.yml`, tests trazables a los contracts (BR/AC/AF) — **470 verdes** (448 backend + 22 del SPA).
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **490 verdes** (453 backend + 37 del SPA).
 Punto de entrada único con **CORS configurable y WebSocket autenticado** (`FEAT-0008`).
 Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 
@@ -109,13 +109,13 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FEAT-0008` | Habilitadores del frontend: CORS, WS autenticado y resumen | ✅ RESOLVED | 59 · IT 20 |
 | `FIX-0008` | Seguridad del punto de entrada (secreto WS, headers/CSP, hosting seguro) | ✅ RESOLVED | 16 · IT 8 |
 | `FEAT-0009` | SPA núcleo: sesión, shell, mapa y hosting desde el gateway | ✅ RESOLVED | 22 (web) · IT 10 |
-| `FEAT-0014` | SPA: detalle en vivo (WS de lecturas + serie de 24 h) | 🟡 DRAFT (Gate) | 29 criterios — parte 2 de 4 |
+| `FEAT-0014` | SPA: detalle en vivo (WS de lecturas + serie de 24 h) | ✅ RESOLVED | 15 (web) · docs 5 |
 | `FEAT-0015` | SPA: alertas en vivo (feed + refresco del mapa) | 🟡 DRAFT (Gate) | 29 criterios — parte 3 de 4 |
 | `FEAT-0016` | SPA: administración y demo (CRUD ADMIN + simulador) | 🟡 DRAFT (Gate) | 31 criterios — parte 4 de 4 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 20 · `ingestion-service` 121 ·
-`alerting-service` 12 · `query-api` 41 · `api-gateway` 131 → **448 tests** del backend (JUnit 5; ITs
-con Testcontainers — los del gateway usan downstreams stub) **+ 22 del SPA** (`web/`, Vitest + RTL +
+`alerting-service` 12 · `query-api` 41 · `api-gateway` 136 → **453 tests** del backend (JUnit 5; ITs
+con Testcontainers — los del gateway usan downstreams stub) **+ 37 del SPA** (`web/`, Vitest + RTL +
 MSW). Detalle por módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e del SPA.
 
 ---

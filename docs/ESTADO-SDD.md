@@ -10,7 +10,7 @@
 
 🔴 DRAFT (Gate — awaiting review)
 
-   └── FEAT-0014: detalle en vivo — lecturas por WebSocket y serie de 24 h [0/29]
+
    └── FEAT-0015: alertas en vivo — feed y refresco del mapa [0/29]
    └── FEAT-0016: administración y demo — CRUD (ADMIN) y panel del simulador [0/31]
 
@@ -27,6 +27,7 @@
    └── FEAT-0007: api-gateway — punto de entrada único, rate limiting y correlación [33/33 ✅]
    └── FEAT-0008: habilitadores del frontend (CORS, auth de WebSocket, resumen de sensores) [31/31 ✅]
    └── FEAT-0009: SPA núcleo — sesión, shell, mapa y hosting desde el gateway [32/32 ✅]
+   └── FEAT-0014: detalle en vivo — lecturas por WebSocket y serie de 24 h [29/29 ✅]
    └── FIX-0008: seguridad del punto de entrada (secreto WS, headers/CSP, hosting seguro) [24/24 ✅]
    └── FEAT-0010: data-simulator — generador de lecturas sintéticas [23/23 ✅]
    └── FEAT-0011: ingestion-service — consumo y severidad de lecturas [22/22 ✅]
@@ -40,9 +41,9 @@
    └── FIX-0006: versionado del schema de sensor.lecturas (payload v1) [31/31 ✅]
    └── FIX-0007: resiliencia del lookup de config (timeouts, breaker, cache TTL) [30/30 ✅]
 
-Total: 25 contracts | 3 in Gate (serie del frontend) | 0 in Loop | 21 resolved
-Criterios de completitud: 464/464 ✅ en los 21 resueltos (285 en FEATs + 148 en FIXes + 31 de FEAT-0008)
-                         + 89 criterios en Gate: FEAT-0014 29, FEAT-0015 29, FEAT-0016 31
+Total: 25 contracts | 2 in Gate (serie del frontend) | 0 in Loop | 22 resolved
+Criterios de completitud: 493/493 ✅ en los 22 resueltos (314 en FEATs + 148 en FIXes + 31 de FEAT-0008)
+                         + 60 criterios en Gate: FEAT-0015 29, FEAT-0016 31
 ```
 
 > **HO-Gate pendiente (humano):**
@@ -53,10 +54,10 @@ Criterios de completitud: 464/464 ✅ en los 21 resueltos (285 en FEATs + 148 en
 >    están cerrados por orden de ejecución del humano (2026-09-15) y esperan su validación; el
 >    hallazgo que amerita revisión es el **S1** de la revisión de seguridad (el gateway aceptaba
 >    tokens forjables con el secreto de desarrollo) — ADR-0020.
-> 3. **Aprobación del Gate de las partes 2–4** (`FEAT-0014`, `FEAT-0015`, `FEAT-0016`, en DRAFT con
->    recomendaciones marcadas "sujeto a HO-Gate"): pasar `Status: APPROVED` + `Mode: LOOP` en la que
->    se quiera ejecutar (son independientes entre sí; `FEAT-0014` y `FEAT-0015` dependen sólo de
->    `FEAT-0009`, ya cerrado).
+> 3. **Aprobación del Gate de las partes 3–4** (`FEAT-0015` alertas en vivo y `FEAT-0016`
+>    administración y demo, en DRAFT con recomendaciones marcadas "sujeto a HO-Gate"): pasar
+>    `Status: APPROVED` + `Mode: LOOP` en la que se quiera ejecutar. Son independientes entre sí y
+>    dependen sólo de `FEAT-0009` (cerrado).
 
 ## Detalle por contract
 
@@ -83,7 +84,7 @@ Criterios de completitud: 464/464 ✅ en los 21 resueltos (285 en FEATs + 148 en
 | FEAT-0008 | `api-gateway` (CORS + auth WS + ruteo) y `query-api` (resumen del mapa) | 31/31 ✅ | ADR-0019 · `.sdd/runs/FEAT-0008-*.md` |
 | FIX-0008 | `api-gateway` — secreto del WS, headers/CSP y hosting seguro del SPA | 24/24 ✅ | ADR-0020 · `.sdd/runs/FIX-0008-*.md` |
 | FEAT-0009 | **SPA (`web/`)** — sesión, shell, mapa y hosting desde el gateway | 32/32 ✅ | ADR-0021 · `web/` 22 tests + `FEAT0009HostingIT` 5 + `FEAT0009DocsTest` 5 |
-| FEAT-0014 | **SPA (`web/`)** — detalle en vivo (WS lecturas + serie 24 h) | 0/29 🔴 Gate | contract `contracts/FEAT-0014.md` (parte 2 de 4) |
+| FEAT-0014 | **SPA (`web/`)** — detalle en vivo (WS lecturas + serie 24 h) | 29/29 ✅ | ADR-0021 · `web/` 15 tests + `FEAT0014DocsTest` 5 |
 | FEAT-0015 | **SPA (`web/`)** — alertas en vivo (feed + refresco del mapa) | 0/29 🔴 Gate | contract `contracts/FEAT-0015.md` (parte 3 de 4) |
 | FEAT-0016 | **SPA (`web/`)** — administración y demo (CRUD + simulador) | 0/31 🔴 Gate | contract `contracts/FEAT-0016.md` (parte 4 de 4) |
 
@@ -101,9 +102,9 @@ Criterios de completitud: 464/464 ✅ en los 21 resueltos (285 en FEATs + 148 en
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 89 | 42 | 131 |
-| **Total** | **328** | **120** | **448** |
-| `web/` (SPA) | 22 | — | 22 |
+| `api-gateway` | 94 | 42 | 136 |
+| **Total** | **333** | **120** | **453** |
+| `web/` (SPA) | 37 | — | 37 |
 
 Cómo reproducirlo:
 
@@ -144,7 +145,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   # debug c
   | Parte | Contract | Alcance | Criterios | Estado |
   |---|---|---|---|---|
   | 1 | `FEAT-0009` | SPA núcleo: sesión, shell, cliente API, **mapa** (`GET /api/sensores/resumen`) y **hosting desde el gateway** | 32 | ✅ RESOLVED (2026-09-15) |
-  | 2 | `FEAT-0014` | detalle en vivo: `WS /ws/sensores/{id}?token=` + serie de 24 h (histórico keyset) | 29 | 🔴 Gate |
+  | 2 | `FEAT-0014` | detalle en vivo: `WS /ws/sensores/{id}?token=` + serie de 24 h (histórico keyset) | 29 | ✅ RESOLVED (2026-09-15) |
   | 3 | `FEAT-0015` | alertas en vivo: `WS /ws/alertas?token=`, feed, contador y refresco del mapa con debounce | 29 | 🔴 Gate |
   | 4 | `FEAT-0016` | administración (CRUD ADMIN, errores por `code`) y panel de demo del simulador (Fase B) | 31 | 🔴 Gate |
 

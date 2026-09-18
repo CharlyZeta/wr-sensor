@@ -44,9 +44,9 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 89 | 42 | 131 |
-| **Total** | **328** | **120** | **448** |
-| `web/` (SPA) | 22 | — | 22 |
+| `api-gateway` | 94 | 42 | 136 |
+| **Total** | **333** | **120** | **453** |
+| `web/` (SPA) | 37 | — | 37 |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
 > `mvn -o test -Dtest='*IT'` y requieren Docker Desktop (los de `api-gateway` no: usan
@@ -431,6 +431,35 @@ npm run e2e            # Playwright (requiere el stack levantado)
 Variables del SPA (todas se **inlinean en el build**: nunca poner secretos): ver `web/.env.example`.
 Las relevantes son `VITE_API_BASE` (vacío = mismo origen), `VITE_RESUMEN_REFRESCO_MS` (default
 30 000 ms), `VITE_TILES_URL`/`VITE_TILES_ATRIBUCION`, `VITE_LOCALE`.
+
+### Detalle en vivo (FEAT-0014)
+
+El detalle del sensor (`/sensores/{id}`) combina el **WebSocket** de lecturas con el **histórico
+keyset**:
+
+| Variable | Default | Para qué |
+|---|---|---|
+| `VITE_SERIE_HORAS` | `24` | ventana de la serie temporal |
+| `VITE_SERIE_MAX_PUNTOS` | `2000` | tope de puntos pedidos al histórico (protege el cupo `lectura` de 120/min) |
+| `VITE_SERIE_REFRESCO_MS` | `60000` | refresco de respaldo del histórico **sólo** mientras el WS no entrega datos |
+| `VITE_TABLA_FILAS` | `25` | filas visibles de la tabla de últimas lecturas |
+| `VITE_DATO_VENCIDO_MS` | `120000` | a partir de cuándo el último dato se marca como vencido |
+| `VITE_WS_BACKOFF_BASE_MS` / `_FACTOR` / `_TOPE_MS` | `1000` / `2` / `30000` | backoff exponencial con jitter de la reconexión |
+| `VITE_WS_MAX_INTENTOS` | `6` | intentos antes de quedar en `pausado` (con la hora del último dato) |
+
+```powershell
+# el WS del detalle se puede probar a mano (el token va en el query: FEAT-0008)
+$token = (Invoke-RestMethod -Method POST http://localhost:8084/api/auth/login `
+  -ContentType 'application/json' `
+  -Body '{"email":"viewer@wrsensor.local","password":"Viewer123!"}').token
+websocat "ws://localhost:8084/ws/sensores/<uuid-del-sensor>?token=$token"
+# → {"sensorId":"…","timestamp":"…","valor":21.5,"unidadMedida":"CELSIUS","calidad":"OK"}
+# el payload NO trae severidad: el detalle la toma del último dato conocido (histórico/resumen)
+```
+
+La ventana de 24 h con frecuencia de 30 s supera el `limit` máximo del histórico (1000), así que el
+SPA **encadena el cursor** hasta cubrir la ventana o llegar a `VITE_SERIE_MAX_PUNTOS`; si trunca, lo
+dice en la leyenda de la serie.
 
 ### Servirlo desde el gateway
 

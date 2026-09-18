@@ -7,6 +7,30 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FEAT-0014] — 2026-09-15 — Detalle en vivo del sensor: WebSocket de lecturas y serie de 24 h
+
+`contracts/FEAT-0014.md` (29/29 ✅) · parte 2 de 4 de la serie del frontend · **sin cambios de
+backend** (usa `WS /ws/sensores/{id}?token=` de FEAT-0008/FEAT-0013 y el histórico keyset).
+Suite: **`web/` 37 tests** (+15) · `api-gateway` +5 (docs) · ADR-0021.
+
+**Agregado:**
+
+- **Lecturas en vivo** (`BR-001/BR-002/BR-007`): una sola conexión por vista, token en el query del
+  handshake, **backoff exponencial con jitter** y tope de intentos, estado visible
+  (`conectando`/`conectado`/`reconectando`/`pausado`), payloads validados y deduplicados por
+  `timestamp`, y errores del socket genéricos para no filtrar la URL con el token.
+- **Serie de 24 h** (`BR-003/BR-005`): histórico pedido con **paginación keyset encadenada** (24 h a
+  30 s superan el `limit` máximo de 1000) y tope configurable; gráfico **SVG propio** con decimación
+  que preserva mínimos y máximos; las lecturas `ERROR_SENSOR` se marcan como inválidas en lugar de
+  dibujarse como valores normales; la **tabla es la fuente de verdad accesible**.
+- **Frescura del dato** (`BR-006`): antigüedad visible y marca de "dato vencido" pasado el umbral.
+- **Resiliencia de la vista**: si el histórico falla (`429`/red), el detalle **conserva** la identidad
+  y el estado del sensor (metadata y serie se piden en paralelo pero independientes) y el refresco de
+  respaldo sólo corre mientras el WS no entrega datos.
+
+**Regresión actualizada:** el test de FEAT-0009 que verificaba "volver a la ruta pedida" ahora
+encuentra el detalle real (antes era un placeholder).
+
 ## [FEAT-0009] — 2026-09-15 — SPA núcleo: sesión, shell, mapa de sensores y hosting desde el gateway
 
 `contracts/FEAT-0009.md` (32/32 ✅) · ADR-0021 · suites nuevas: **`web/` 22 unit (Vitest+RTL+MSW)** ·

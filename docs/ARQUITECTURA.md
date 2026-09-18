@@ -305,6 +305,17 @@ web/
 - **Cupo del gateway respetado**: un solo timer por vista, pausa en pestaña oculta y `Retry-After`
   respetado ante `429` (la clase `lectura` es 120/min).
 
+**Detalle en vivo (FEAT-0014):** `/sensores/{id}` combina `WS /ws/sensores/{id}?token=` con el
+histórico keyset (`GET /api/sensores/{id}/lecturas?desde&hasta&cursor`). `useLecturasEnVivo` mantiene
+**una** conexión por vista (se cierra al desmontar o cambiar de sensor), con **backoff exponencial con
+jitter** y estado visible (`conectando`/`conectado`/`reconectando`/`pausado`), valida cada payload
+antes de usarlo y **no** loguea la URL (que lleva el token). Las lecturas entrantes se acumulan por
+**evento del socket** (no desde un efecto), deduplicadas por `timestamp` y ordenadas. La serie se
+dibuja con `SerieTemporal` (SVG propio, decimado preservando mínimos y máximos) y las lecturas
+`ERROR_SENSOR` se marcan como inválidas en lugar de graficarse como valores normales; la **tabla es la
+fuente de verdad accesible**. Si el histórico falla (`429`, red), el detalle conserva la identidad del
+sensor en pantalla y sólo informa el error de la serie.
+
 **Empaquetado (BR-010):** el stage de Node del `Dockerfile` del gateway construye el SPA y lo copia a
 `/app/static/` (`GATEWAY_STATIC_LOCATION=file:/app/static/`), así que no hay que reempaquetar el jar;
 para correr local sin Docker hay un profile opt-in (`mvn -o package -Pcon-spa`) que copia `web/dist`.
