@@ -388,3 +388,130 @@ a {
 .aviso-global {
   padding: var(--espacio-3) var(--espacio-4) 0;
 }
+/* ---------- detalle en vivo (FEAT-0014) ---------- */
+.chip-severidad,
+.chip-conexion {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px var(--espacio-2);
+  border-radius: 999px;
+  border: 1px solid var(--color-borde);
+  background: var(--color-superficie);
+}
+
+.conexion-conectado {
+  border-color: var(--sev-normal);
+  color: var(--sev-normal);
+}
+
+.conexion-reconectando,
+.conexion-connectando,
+.conexion-conectando {
+  border-color: var(--sev-warning);
+  color: var(--sev-warning);
+}
+
+.conexion-pausado {
+  border-color: var(--sev-sin-datos);
+  color: var(--sev-sin-datos);
+}
+
+.datos-sensor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--espacio-3);
+  margin: 0 0 var(--espacio-4);
+  padding: var(--espacio-3);
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+
+.datos-sensor dt {
+  font-size: 0.8rem;
+  color: var(--color-texto-suave);
+}
+
+.datos-sensor dd {
+  margin: var(--espacio-1) 0 0;
+  font-weight: 600;
+}
+
+.marca-vivo {
+  color: var(--sev-normal);
+  font-weight: 700;
+}
+
+.marca-vencido {
+  color: var(--sev-warning);
+  font-weight: 700;
+}
+
+.serie {
+  margin: 0 0 var(--espacio-4);
+  padding: var(--espacio-2);
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+}
+
+.serie-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.serie-linea {
+  fill: none;
+  stroke: var(--color-primario);
+  stroke-width: 2;
+}
+
+.serie-area {
+  fill: color-mix(in srgb, var(--color-primario) 15%, transparent);
+  stroke: none;
+}
+
+.serie-eje {
+  stroke: var(--color-borde);
+  stroke-width: 1;
+}
+
+.serie-texto {
+  fill: var(--color-texto-suave);
+  font-size: 11px;
+}
+
+.serie-invalido {
+  stroke-width: 2;
+  stroke-dasharray: 3 3;
+  stroke: currentColor;
+}
+
+.tabla-lecturas {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  overflow: hidden;
+}
+
+.tabla-lecturas th,
+.tabla-lecturas td {
+  text-align: left;
+  padding: var(--espacio-2);
+  border-bottom: 1px solid var(--color-borde);
+  font-size: 0.9rem;
+}
+
+.tabla-lecturas thead th {
+  background: var(--color-fondo);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fila-invalida {
+  background: color-mix(in srgb, var(--sev-invalido) 10%, transparent);
+}

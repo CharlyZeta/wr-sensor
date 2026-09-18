@@ -112,7 +112,70 @@ export function restaurarResumen(): void {
     HttpResponse.json(sensoresDeEjemplo, { headers: { 'X-Correlation-Id': 'corr-resumen' } })
 }
 
+/** Handlers del detalle (FEAT-0014): metadata del sensor y histórico keyset. */
+let historicoHandler: (url: URL) => Response | Promise<Response> = (url) => {
+  const limit = Number.parseInt(url.searchParams.get('limit') ?? '1000', 10)
+  const items = lecturasDeEjemplo.slice(0, Math.min(limit, lecturasDeEjemplo.length))
+  return HttpResponse.json({ items, nextCursor: null })
+}
+
+export function conHistorico(handler: (url: URL) => Response | Promise<Response>): void {
+  historicoHandler = handler
+}
+
+export function restaurarHistorico(): void {
+  historicoHandler = (url) => {
+    const limit = Number.parseInt(url.searchParams.get('limit') ?? '1000', 10)
+    const items = lecturasDeEjemplo.slice(0, Math.min(limit, lecturasDeEjemplo.length))
+    return HttpResponse.json({ items, nextCursor: null })
+  }
+}
+
+let detalleHandler: () => Response | Promise<Response> = () => HttpResponse.json(sensoresDeEjemplo[0])
+
+export function conDetalle(handler: () => Response | Promise<Response>): void {
+  detalleHandler = handler
+}
+
+export function restaurarDetalle(): void {
+  detalleHandler = () => HttpResponse.json(sensoresDeEjemplo[0])
+}
+
+/** Lecturas de ejemplo: 3 válidas (una CRITICAL) y 1 con calidad ERROR_SENSOR. */
+export const lecturasDeEjemplo = [
+  {
+    timestamp: '2026-09-15T10:00:00Z',
+    valor: 10.5,
+    unidadMedida: 'CELSIUS',
+    severidad: 'NORMAL',
+    calidad: 'OK',
+  },
+  {
+    timestamp: '2026-09-15T11:00:00Z',
+    valor: 42.25,
+    unidadMedida: 'CELSIUS',
+    severidad: 'WARNING',
+    calidad: 'OK',
+  },
+  {
+    timestamp: '2026-09-15T12:00:00Z',
+    valor: 99.9,
+    unidadMedida: 'CELSIUS',
+    severidad: 'CRITICAL',
+    calidad: 'OK',
+  },
+  {
+    timestamp: '2026-09-15T12:30:00Z',
+    valor: 12345,
+    unidadMedida: 'CELSIUS',
+    severidad: null,
+    calidad: 'ERROR_SENSOR',
+  },
+]
+
 export const servidor = setupServer(
   http.post('/api/auth/login', (info) => loginHandler(info)),
   http.get('/api/sensores/resumen', () => resumenHandler()),
+  http.get('/api/sensores/:id/lecturas', ({ request }) => historicoHandler(new URL(request.url))),
+  http.get('/api/sensores/:id', () => detalleHandler()),
 )

@@ -119,8 +119,9 @@ describe('FEAT-0009 · Alternative Flows', () => {
 
     await entrar(usuario)
 
+    // vuelve a la ruta pedida: el detalle del sensor (FEAT-0014 ya lo implementa de verdad)
     expect(
-      await screen.findByRole('heading', { name: 'Detalle del sensor' }),
+      await screen.findByRole('heading', { name: /Norte/ }),
     ).toBeInTheDocument()
   })
 

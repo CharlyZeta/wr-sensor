@@ -30,6 +30,24 @@ export const config = {
   tilesAtribucion: texto(import.meta.env.VITE_TILES_ATRIBUCION, '© OpenStreetMap'),
   /** Locale para formateo (números y fechas). */
   locale: texto(import.meta.env.VITE_LOCALE, 'es-AR'),
+
+  // ---- detalle en vivo (FEAT-0014) ----
+
+  /** Ventana de la serie temporal, en horas. */
+  serieHoras: entero(import.meta.env.VITE_SERIE_HORAS, 24, 1),
+  /** Tope de puntos que se piden al histórico (protege el cupo y la memoria). */
+  serieMaxPuntos: entero(import.meta.env.VITE_SERIE_MAX_PUNTOS, 2_000, 10),
+  /** Refresco de respaldo del histórico mientras el WS está pausado (ms). */
+  serieRefrescoMs: entero(import.meta.env.VITE_SERIE_REFRESCO_MS, 60_000, 5_000),
+  /** Filas visibles de la tabla de últimas lecturas. */
+  tablaFilas: entero(import.meta.env.VITE_TABLA_FILAS, 25, 5),
+  /** Un dato más viejo que esto se marca como vencido (ms). */
+  datoVencidoMs: entero(import.meta.env.VITE_DATO_VENCIDO_MS, 120_000, 5_000),
+  /** Backoff de reconexión del WS (FEAT-0014 BR-002). */
+  wsBackoffBaseMs: entero(import.meta.env.VITE_WS_BACKOFF_BASE_MS, 1_000, 100),
+  wsBackoffFactor: entero(import.meta.env.VITE_WS_BACKOFF_FACTOR, 2, 2),
+  wsBackoffTopeMs: entero(import.meta.env.VITE_WS_BACKOFF_TOPE_MS, 30_000, 1_000),
+  wsMaxIntentos: entero(import.meta.env.VITE_WS_MAX_INTENTOS, 6, 1),
 } as const
 
 /** URL absoluta o relativa de un path de la API, respetando `VITE_API_BASE`. */
