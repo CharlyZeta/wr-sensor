@@ -539,8 +539,22 @@ curl.exe -sS -D - -o NUL http://localhost:8084/ | Select-String 'Content-Securit
 Si el SPA se sirve pero la CSP bloquea el mapa, revisar `gateway.seguridad.content-security-policy`:
 el origen de los tiles tiene que estar en `img-src` (ver §9).
 
-> **e2e (Playwright)**: `npm run e2e` requiere `npx playwright install` una vez y el stack levantado
-> (`docker-compose.dev.yml` publica los puertos de los servicios, o el gateway con el SPA construido).
+> **e2e (Playwright)**: los escenarios viven en `web/e2e/` y corren contra el **build real** servido
+> por un stub que replica las reglas del gateway (mismo origen, CSP, 404 JSON de la API, fallback de
+> rutas del cliente) y el contrato de los endpoints y WebSocket usados. No necesita Docker:
+>
+> ```powershell
+> cd web
+> npm run build                     # el stub sirve web/dist
+> npx playwright install chromium   # una vez
+> npm run e2e                       # levanta el stub en :8085 y corre los 9 escenarios
+> # o contra un stack ya levantado:
+> $env:E2E_BASE_URL = "http://localhost:8084"; npm run e2e
+> ```
+>
+> Cubre: hosting/seguridad (headers, 404 de la API sin HTML, token fuera de la URL), sesión y mapa,
+> errores por `code` (credenciales y 502 del resumen), detalle con serie y valor en vivo por WS, feed
+> de alertas con contador, y el CRUD (alta, código duplicado, baja lógica y `VIEWER` sin acceso).
 
 > **NOTA:** el SPA construido se copia a `services/api-gateway/src/main/resources/static/` sólo si se
 > usa el flujo manual; esa carpeta es **generada** y no se versiona.

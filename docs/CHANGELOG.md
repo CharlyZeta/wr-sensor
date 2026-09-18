@@ -11,7 +11,17 @@
 
 `contracts/FEAT-0016.md` (31/31 ✅) · parte 4 de 4 de la serie del frontend · **sin cambios de
 backend** (usa el CRUD de FEAT-0001..0005 y el control del `data-simulator` por su puerto de dev).
-Suite: **`web/` 63 tests** (+12).
+Suite: **`web/` 63 unit + 9 e2e** (+12 unit) · **cierra la serie del frontend (4/4)**.
+
+**Agregado — e2e con Playwright (cierre de la serie):** `web/e2e/` con **9 escenarios** que corren
+contra el **build real** servido por un stub (`web/e2e/stubs/servidor.mjs`) que replica las reglas del
+gateway —mismo origen, CSP y headers de seguridad, `404 ROUTE_NOT_FOUND` en JSON para la API, fallback
+de rutas del cliente, `no-store` en el índice— y el contrato de los endpoints y WebSocket (el token
+viaja por query y sin token el upgrade responde 401). **No necesita Docker**: `npm run build` +
+`npm run e2e`. Cubre hosting y seguridad (headers, 404 sin HTML, token fuera de la URL), sesión y
+mapa, errores por `code` (credenciales inválidas y `502 REGISTRY_UNAVAILABLE` con correlación),
+detalle con serie y valor en vivo por WebSocket, feed de alertas con contador de no leídas y el CRUD
+(alta, `SENSOR_CODE_DUPLICATED` en el campo, baja lógica confirmada, `VIEWER` sin administración).
 
 **Agregado:**
 

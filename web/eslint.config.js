@@ -11,7 +11,7 @@ import tseslint from 'typescript-eslint'
  * imprimir el token o una URL con `?token=`).
  */
 export default tseslint.config(
-  { ignores: ['dist', 'coverage', 'node_modules', 'playwright-report', 'test-results'] },
+  { ignores: ['dist', 'coverage', 'node_modules', 'playwright-report', 'test-results', 'e2e/stubs'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
