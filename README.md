@@ -1,5 +1,9 @@
 # WR-Sensor — Water Level Monitoring Platform
 
+<p align="center">
+  <img src="docs/Wrs.jpg" alt="WR-Sensor Platform" width="480" />
+</p>
+
 Plataforma de monitoreo de altura de agua (ríos Paraná y Salado, Santa Fe) desarrollada
 con **Spec-Driven Development Gate/Loop (SDD-GL)**. Cada funcionalidad nace como un
 *Contract* (`contracts/FEAT-*.md` / `FIX-*.md`) que pasa por un Gate de aprobación
