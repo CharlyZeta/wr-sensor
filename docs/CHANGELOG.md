@@ -7,6 +7,20 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FIX-0009] — 2026-10-01 — Portabilidad del Quickstart en README.md y flujo completo DX de la SPA
+
+`contracts/FIX-0009.md` (8/8 ✅) · auditoría `.sdd/runs/FIX-0009-20261001-071700.md`.
+Suite: **`api-gateway` 154 tests** (+8 docs: `FIX0009DocsTest`).
+
+**Causa:**
+El `README.md` original incluía en la Sección 5 rutas absolutas locales fijas del entorno del autor (`JAVA_HOME="C:/Program Files/..."` y `"C:/Users/Gerardo/.m2/wrapper/..."`), impidiendo la ejecución directa por parte de otros desarrolladores sin modificar los comandos. Asimismo, el Quickstart omitía por completo los comandos para construir, testear y levantar la SPA React/Vite de `web/`.
+
+**Impacto:**
+- Se eliminaron todas las referencias a rutas de usuario personales y rutas absolutas locales del `README.md`.
+- Se documentaron los comandos portables de ciclo de vida del backend (`mvn -o test`, `mvn -o test -Dtest='FEAT0001MainFlowIT'`) con nota aclaratoria de configuración de entorno.
+- Se incorporó el bloque del Frontend SPA (`cd web`, `npm ci`, `npm test`, `npm run dev`) con referencia al puerto de desarrollo `localhost:5173`.
+- Se añadió la suite automatizada `FIX0009DocsTest` en `api-gateway` para prevenir regresiones en la portabilidad del documento.
+
 ## [FEAT-0016] — 2026-09-15 — Administración y demo: CRUD de sensores y panel del simulador
 
 `contracts/FEAT-0016.md` (31/31 ✅) · parte 4 de 4 de la serie del frontend · **sin cambios de

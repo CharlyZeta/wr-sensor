@@ -6,7 +6,7 @@ con **Spec-Driven Development Gate/Loop (SDD-GL)**. Cada funcionalidad nace como
 humana (HO-Gate) y luego un Loop autónomo de implementación + tests hasta
 `RESOLVED`.
 
-> Estado al **2026-09-14**: 18 Work Items cerrados (~99% del roadmap v1).
+> Estado al **2026-10-01**: 25 Work Items cerrados (16 FEAT + 9 FIX).
 
 ---
 
@@ -112,9 +112,10 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FEAT-0014` | SPA: detalle en vivo (WS de lecturas + serie de 24 h) | ✅ RESOLVED | 15 (web) · docs 5 |
 | `FEAT-0015` | SPA: alertas en vivo (feed + refresco del mapa) | ✅ RESOLVED | 14 (web) · docs 5 |
 | `FEAT-0016` | SPA: administración y demo (CRUD ADMIN + simulador) | ✅ RESOLVED | 12 (web) · docs 5 |
+| `FIX-0009` | Portabilidad Quickstart y DX del Frontend SPA | ✅ RESOLVED | docs 8 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 20 · `ingestion-service` 121 ·
-`alerting-service` 12 · `query-api` 41 · `api-gateway` 146 → **463 tests** del backend (JUnit 5; ITs
+`alerting-service` 12 · `query-api` 41 · `api-gateway` 154 → **471 tests** del backend (JUnit 5; ITs
 con Testcontainers — los del gateway usan downstreams stub) **+ 63 del SPA** (`web/`, Vitest + RTL +
 MSW). Detalle por módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e del SPA.
 
@@ -122,20 +123,38 @@ MSW). Detalle por módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e d
 
 ## 5. Quickstart
 
-Requisitos: JDK 25, Maven (ver ruta en `docs/RUNBOOK.md`), Docker Desktop.
+Requisitos: JDK 25, Maven 3.9+, Node.js 20+, Docker Desktop.
+
+### Backend (Java / Spring WebFlux)
 
 ```bash
-# 1) Tests de un servicio (offline)
+# 1) Tests unitarios de un servicio (offline, sin Docker)
 cd services/sensor-registry
-JAVA_HOME="C:/Program Files/Amazon Corretto/jdk25.0.3_9" \
-  "C:/Users/Gerardo/.m2/wrapper/dists/apache-maven-3.9.9-bin/33b4b2b4/apache-maven-3.9.9/bin/mvn.cmd" -o test
+mvn -o test
 
-# 2) Correr un IT (requiere Docker)
-... mvn.cmd -o test -Dtest='FEAT0001MainFlowIT'
+# 2) Correr un IT con Testcontainers (requiere Docker Desktop)
+mvn -o test -Dtest='FEAT0001MainFlowIT'
 ```
 
-Credenciales dev (auth FEAT-0006): `admin@wrsensor.local` / `Admin123!` ·
-`viewer@wrsensor.local` / `Viewer123!`.
+> Nota: Si Maven o Java no están en el `PATH`, definir `JAVA_HOME` y usar el wrapper Maven (`mvn.cmd` o `./mvnw`). Ver detalles en `docs/RUNBOOK.md` §1 y §2.
+
+### Frontend SPA (React / Vite)
+
+```bash
+# 1) Instalar dependencias
+cd web
+npm ci
+
+# 2) Correr tests unitarios / componentes (Vitest)
+npm test
+
+# 3) Servidor de desarrollo Vite (http://localhost:5173)
+npm run dev
+```
+
+### Credenciales de desarrollo
+
+Credenciales dev (auth FEAT-0006): `admin@wrsensor.local` / `Admin123!` · `viewer@wrsensor.local` / `Viewer123!`.
 
 ---
 

@@ -1,8 +1,8 @@
-# Estado SDD-GL — WR-Sensor
+﻿# Estado SDD-GL — WR-Sensor
 
 > Dashboard generado con el comando `/sdd-status` del frame SDD-GL, **persistido para análisis
 > externo**. Fuente de verdad: los headers y Completion Maps de `contracts/*.md`.
-> Última actualización: **2026-09-14** · changelog del proyecto: [`docs/CHANGELOG.md`](CHANGELOG.md) ·
+> Última actualización: **2026-10-01** · changelog del proyecto: [`docs/CHANGELOG.md`](CHANGELOG.md) ·
 > registro detallado: [`docs/REGISTRO-SDD.md`](REGISTRO-SDD.md).
 
 ```
@@ -30,7 +30,9 @@
    └── FEAT-0014: detalle en vivo — lecturas por WebSocket y serie de 24 h [29/29 ✅]
    └── FEAT-0015: alertas en vivo — feed y refresco del mapa [29/29 ✅]
    └── FEAT-0016: administración y demo — CRUD (ADMIN) y panel del simulador [31/31 ✅]
+| FIX-0009 | pi-gateway / README.md — portabilidad Quickstart y DX de la SPA | 8/8 ✅ | .sdd/runs/FIX-0009-20261001-071700.md · FIX0009DocsTest 8 |
    └── FIX-0008: seguridad del punto de entrada (secreto WS, headers/CSP, hosting seguro) [24/24 ✅]
+   └── FIX-0009: corrección de portabilidad del Quickstart en README.md y flujo completo DX del Frontend SPA [8/8 ✅]
    └── FEAT-0010: data-simulator — generador de lecturas sintéticas [23/23 ✅]
    └── FEAT-0011: ingestion-service — consumo y severidad de lecturas [22/22 ✅]
    └── FEAT-0012: alerting-service — histéresis y notificación de alertas [22/22 ✅]
@@ -43,8 +45,8 @@
    └── FIX-0006: versionado del schema de sensor.lecturas (payload v1) [31/31 ✅]
    └── FIX-0007: resiliencia del lookup de config (timeouts, breaker, cache TTL) [30/30 ✅]
 
-Total: 25 contracts | 0 in Gate | 0 in Loop | 24 resolved
-Criterios de completitud: 553/553 ✅ en los 24 resueltos (374 en FEATs + 148 en FIXes + 31 de FEAT-0008)
+Total: 25 contracts | 0 in Gate | 0 in Loop | 25 resolved
+Criterios de completitud: 561/561 ✅ en los 25 resueltos
                          pendientes en Gate: ninguno
 ```
 
@@ -90,13 +92,14 @@ Criterios de completitud: 553/553 ✅ en los 24 resueltos (374 en FEATs + 148 en
 | FEAT-0014 | **SPA (`web/`)** — detalle en vivo (WS lecturas + serie 24 h) | 29/29 ✅ | ADR-0021 · `web/` 15 tests + `FEAT0014DocsTest` 5 |
 | FEAT-0015 | **SPA (`web/`)** — alertas en vivo (feed + refresco del mapa) | 29/29 ✅ | ADR-0021 · `web/` 14 tests + `FEAT0015DocsTest` 5 |
 | FEAT-0016 | **SPA (`web/`)** — administración y demo (CRUD + simulador) | 31/31 ✅ | ADR-0021 · `web/` 12 tests + `FEAT0016DocsTest` 5 |
+| FIX-0009 | `api-gateway` / `README.md` — portabilidad Quickstart y DX de la SPA | 8/8 ✅ | `.sdd/runs/FIX-0009-20261001-071700.md` · `FIX0009DocsTest` 8 |
 
 > Los conteos exactos de tests son **por módulo** (tabla siguiente): un mismo archivo de test puede
 > cubrir criterios de más de un contract, así que atribuir tests a un contract individual sería
 > impreciso. La trazabilidad criterio → test sí es exacta: el `Completion Map` de cada contract
 > indica el `test-id` de cada criterio.
 
-## Suites por módulo (verificado 2026-09-14)
+## Suites por módulo (verificado 2026-10-01)
 
 | Módulo | Unit | IT | Total |
 |---|---|---|---|
@@ -105,8 +108,8 @@ Criterios de completitud: 553/553 ✅ en los 24 resueltos (374 en FEATs + 148 en
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 104 | 42 | 146 |
-| **Total** | **343** | **120** | **463** |
+| `api-gateway` | 112 | 42 | 154 |
+| **Total** | **351** | **120** | **471** |
 | `web/` (SPA) | 63 | — | 63 |
 
 Cómo reproducirlo:
