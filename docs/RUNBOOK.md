@@ -44,8 +44,8 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 104 | 42 | 146 |
-| **Total** | **343** | **120** | **463** |
+| `api-gateway` | 118 | 42 | 160 |
+| **Total** | **357** | **120** | **477** |
 | `web/` (SPA) | 63 | — | 63 |
 
 > Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con

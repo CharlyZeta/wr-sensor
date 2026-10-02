@@ -7,6 +7,17 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FEAT-0017] — 2026-10-02 — Banner visual de cabecera y assets de arquitectura en README.md
+
+`contracts/FEAT-0017.md` (6/6 ✅) · auditoría `.sdd/runs/FEAT-0017-20261002-200900.md`.
+Suite: **`api-gateway` 160 tests** (+6 docs: `FEAT0017DocsTest`).
+
+**Agregado:**
+- Directorio consolidado `docs/assets/` para imágenes y recursos gráficos del proyecto.
+- Banner de arquitectura en formato 16:9 (`docs/assets/wrsensor-banner.jpg`) en el encabezado del `README.md`, mostrando el pipeline completo de telemetría fluvial.
+- Insignias de estado (badges) de shields.io indicando tests (534 pasados), stack técnico (Java 25, Spring Boot 4.1 WebFlux, TimescaleDB, RabbitMQ) y framework SDD-GL v0.4.0.
+- Suite de pruebas mecánicas `FEAT0017DocsTest` en `api-gateway` para validar accesibilidad y consistencia de los assets.
+
 ## [FIX-0009] — 2026-10-01 — Portabilidad del Quickstart en README.md y flujo completo DX de la SPA
 
 `contracts/FIX-0009.md` (8/8 ✅) · auditoría `.sdd/runs/FIX-0009-20261001-071700.md`.

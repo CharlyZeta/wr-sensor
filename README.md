@@ -1,7 +1,16 @@
 # WR-Sensor — Water Level Monitoring Platform
 
 <p align="center">
-  <img src="docs/Wrs.jpg" alt="WR-Sensor Platform" width="480" />
+  <img src="docs/assets/wrsensor-banner.jpg" alt="WR-Sensor Architecture Banner" width="100%" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/tests-534%20passed-brightgreen?style=flat-square" alt="Tests 534 passed" />
+  <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square" alt="Java 25" />
+  <img src="https://img.shields.io/badge/Spring%20Boot-4.1%20WebFlux-green?style=flat-square" alt="Spring Boot 4.1" />
+  <img src="https://img.shields.io/badge/TimescaleDB-Time%20Series-blue?style=flat-square" alt="TimescaleDB" />
+  <img src="https://img.shields.io/badge/RabbitMQ-Reactor-orange?style=flat-square" alt="RabbitMQ" />
+  <img src="https://img.shields.io/badge/SDD--GL-v0.4.0-purple?style=flat-square" alt="SDD-GL v0.4.0" />
 </p>
 
 Plataforma de monitoreo de altura de agua (ríos Paraná y Salado, Santa Fe) desarrollada
@@ -10,7 +19,7 @@ con **Spec-Driven Development Gate/Loop (SDD-GL)**. Cada funcionalidad nace como
 humana (HO-Gate) y luego un Loop autónomo de implementación + tests hasta
 `RESOLVED`.
 
-> Estado al **2026-10-01**: 25 Work Items cerrados (16 FEAT + 9 FIX).
+> Estado al **2026-10-02**: 26 Work Items cerrados (17 FEAT + 9 FIX).
 
 ---
 
@@ -65,7 +74,7 @@ sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico key
 
 Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
 paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
-`application.yml`, tests trazables a los contracts (BR/AC/AF) — **526 verdes** (463 backend + 63 del SPA).
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **540 verdes** (477 backend + 63 del SPA).
 Punto de entrada único con **CORS configurable y WebSocket autenticado** (`FEAT-0008`).
 Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 
@@ -117,9 +126,10 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FEAT-0015` | SPA: alertas en vivo (feed + refresco del mapa) | ✅ RESOLVED | 14 (web) · docs 5 |
 | `FEAT-0016` | SPA: administración y demo (CRUD ADMIN + simulador) | ✅ RESOLVED | 12 (web) · docs 5 |
 | `FIX-0009` | Portabilidad Quickstart y DX del Frontend SPA | ✅ RESOLVED | docs 8 |
+| `FEAT-0017` | Banner visual de cabecera y assets de arquitectura | ✅ RESOLVED | docs 6 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 20 · `ingestion-service` 121 ·
-`alerting-service` 12 · `query-api` 41 · `api-gateway` 154 → **471 tests** del backend (JUnit 5; ITs
+`alerting-service` 12 · `query-api` 41 · `api-gateway` 160 → **477 tests** del backend (JUnit 5; ITs
 con Testcontainers — los del gateway usan downstreams stub) **+ 63 del SPA** (`web/`, Vitest + RTL +
 MSW). Detalle por módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e del SPA.
 
@@ -164,8 +174,8 @@ Credenciales dev (auth FEAT-0006): `admin@wrsensor.local` / `Admin123!` · `view
 
 ## 6. Nota sobre el frame SDD-GL
 
-Frame **SDD-GL v0.3.0** instalado en el repo (protocolos EXPRESS/STRICT, Glass Box
-en `.sdd/runs/`, orquestadores `CLAUDE.md`/`AGENTS.md`, skills en `.agents/skills/`,
+Frame **SDD-GL v0.4.0** instalado en el repo (protocolos EXPRESS/STRICT, Glass Box
+en `.sdd/runs/`, servidor MCP en `mcp/server.js`, orquestadores `CLAUDE.md`/`AGENTS.md`, skills en `.agents/skills/`,
 presets y spec MCP en `mcp/`). Autor: [CharlyZeta/SDD-GL](https://github.com/CharlyZeta/SDD-GL).
 
 
