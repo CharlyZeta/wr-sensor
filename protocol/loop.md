@@ -39,15 +39,18 @@ Formato de cada línea en el Completion Map:
 
 ## Persistencia de progreso — CRÍTICO
 
-El Loop escribe el estado en disco **antes y después** de ejecutar cada ítem.
+El Loop escribe el estado en disco **antes y después** de ejecutar cada ítem y capa.
 
-Secuencia por ítem:
+Secuencia por ítem y capa:
 1. Seleccionar primer ítem `❌` o `⏳` del Completion Map
 2. Escribir `⏳` en el Contract → **persistir en disco**
-3. Delegar al agente correspondiente
+3. Delegar al agente según la capa (`functional` → `tester`, `static`/`security`/`arch` → `verifier`)
 4. Si el agente retorna `BLOCKED` o `NOT_WRITABLE` → escalar de inmediato a Gate (ver sección Ambigüedad)
-5. Si el test pasa → escribir `✅` → **persistir en disco** → continuar
-6. Si el test falla → reintentar (máx. 3 veces) → si sigue fallando tras 3 intentos → invocar reviewer-agent
+5. Si la verificación pasa → escribir `✅` → **persistir en disco** → continuar
+6. Si la verificación falla:
+   - Si es un hallazgo acotado (lint, tipado simple, assertion desfasada) → invocar `solve-agent` (máx. 3 intentos de reparación rápida).
+   - Si es un fallo funcional complejo → invocar `coder-agent` para corregir implementación (máx. 3 intentos).
+   - Si tras 3 intentos sigue fallando → invocar `reviewer-agent` (análisis de ambigüedad vs. 1 reintento guiado).
 
 Si al arrancar hay ítems `⏳` en el mapa, el proceso fue interrumpido:
 reanudar desde el primer `⏳` sin re-ejecutar los `✅`.
@@ -64,7 +67,7 @@ LOOP:
     cargar mapa del disco (no reconstruir)
     si hay ítems ⏳ → reanudar desde el primero
   Si no existe:
-    construir Completion Map desde Contract
+    construir Completion Map multicapa desde Contract
     persistir en disco
 
   ReviewerRetries = 0
@@ -75,29 +78,30 @@ LOOP:
     intentos = 0
 
     WHILE intentos < 3:
-      delegar al agente:
-        BR-XXX / AF-XX → tester-agent
-        AC-XXX         → tester-agent
-        Main Flow      → coder-agent + tester-agent
+      delegar según capa:
+        capa functional → tester-agent (+ coder-agent si Main Flow)
+        capas static / security / arch → verifier-agent
 
-      si el agente responde BLOCKED o responde NOT_WRITABLE:
+      si el agente responde BLOCKED o NOT_WRITABLE:
         escribir en Ambiguity Log: "- [ ] [ID-ítem]: [motivo del bloqueo]"
         escribir ❌ en Contract → persistir
         cambiar Mode: GATE y Status: DRAFT → persistir
         notificar al humano y DETENER
 
-      si test pasa:
+      si verificación pasa:
         escribir ✅ en Contract → persistir
         break
 
-      si test falla:
+      si verificación falla:
         intentos++
-        coder-agent corrige implementación
+        si es hallazgo acotado (lint/tipos/typos):
+          solve-agent repara código
+        sino:
+          coder-agent corrige implementación
 
     si intentos == 3 y sigue fallando:
       si ReviewerRetries >= 1:
-        // Ya se intentó una corrección guiada por el Reviewer y falló. Escalar directamente.
-        escribir en Ambiguity Log: "- [ ] [ID-ítem]: Falla persistente tras reintentos guiados por Reviewer."
+        escribir en Ambiguity Log: "- [ ] [ID-ítem]: Falla persistente tras reintentos guiados."
         escribir ❌ en Contract → persistir
         cambiar Mode: GATE y Status: DRAFT → persistir
         notificar al humano y DETENER
@@ -110,12 +114,12 @@ LOOP:
           notificar al humano y DETENER
         si es error de implementación (RETRY):
           ReviewerRetries++
-          // El Reviewer da una sugerencia específica. Se inicia un nuevo y único ciclo de hasta 3 intentos
           intentos = 0
           coder-agent aplica la sugerencia del reviewer
           continue
 
-  COMPLETION REPORT
+  COMPLETION REPORT (actualiza .sdd/metrics.json)
+```
 ```
 
 ---

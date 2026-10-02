@@ -57,3 +57,15 @@
 - **Official Stack Presets**: Added zero-config presets in `presets/` for Java Spring Boot 3.x (Hexagonal/DDD), Python FastAPI (Pydantic v2/Async), and TypeScript Node.js/Bun.
 - **Model Context Protocol (MCP) Server Specification**: Added `mcp/sdd-gl-mcp-spec.md` with standard JSON-RPC tool schemas (`sdd_create_contract`, `sdd_validate_gate`, `sdd_step_loop`, `sdd_log_ambiguity`, `sdd_get_status`), making SDD-GL 100% agnostic to any IDE or LLM runtime.
 
+## [0.4.0] — 2026-10-02
+
+### Added — Layered Verification (AC/DC Layer), Auto-Repair, Metrics & Executable MCP Server
+
+- **Layered Verification Protocol (AC/DC Layer)**: Extended the Completion Map to support multi-layer verification: `functional` (unit/integration/assertions), `static` (strict types & linter), `security` (vulnerabilities & secrets), and `arch` (architectural boundaries against `CONSTITUTION.md`).
+- **Rapid Auto-Repair (`solve-agent` / `sdd-solve-agent`)**: Added specialized repair subagent that fixes localized syntax, lint, typing, and test assertion findings in $\le 3$ attempts without modifying public interfaces or business rules.
+- **Verification Agent (`verifier-agent` / `sdd-verifier-agent`)**: Subagent dedicated to running and verifying static, security, and architectural guardrail layers.
+- **Quality & Delivery Metrics (`/sdd-metrics`)**: Real-time computation and display of First-Pass Quality Rate (FPQR), average retries, and layer pass rates backed by `.sdd/metrics.json`.
+- **Traceability Audit (`/sdd-audit`)**: Non-blocking inspection reporting orphan specifications (specs without tests) and untracked domain code (code without specs).
+- **Executable MCP Server (`@sdd-gl/mcp-server`)**: Standard Node.js JSON-RPC stdio server in `mcp/server.js` implementing tools for contracts, gate validation, loop execution, metrics, and audits.
+- **Project Constitution (`CONSTITUTION.md`)**: Optional high-level architectural rules and security guardrails respected by all agents in the Loop.
+

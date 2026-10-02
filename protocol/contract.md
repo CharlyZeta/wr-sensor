@@ -49,22 +49,31 @@ Legible para el humano en modo Gate, parseable por el Loop para inferir criterio
 
 ---
 
-## Tabla de inferencia de criterios
+## Tabla de inferencia de criterios y capas
 
-| Elemento en la spec        | Criterio inferido                         |
-|----------------------------|-------------------------------------------|
-| Main Flow con N pasos      | 1 integration test mínimo                 |
-| Alternative Flow AF-XX     | 1 unit test por cada AF-XX                |
-| Business Rule BR-XXX       | 1 unit test de validación por cada BR-XXX |
-| Acceptance Criteria AC-XXX | 1 assertion verificable por cada AC-XXX   |
+### Inferencia por tipo de criterio:
+| Elemento en la spec        | Criterio inferido                         | Capa principal |
+|----------------------------|-------------------------------------------|----------------|
+| Main Flow con N pasos      | 1 integration test mínimo                 | functional     |
+| Alternative Flow AF-XX     | 1 unit test por cada AF-XX                | functional     |
+| Business Rule BR-XXX       | 1 unit test de validación por cada BR-XXX | functional     |
+| Acceptance Criteria AC-XXX | 1 assertion verificable por cada AC-XXX   | functional     |
+
+### Capas de verificación estándar:
+| Capa (`[layer]`) | Propósito                                               | Agente encargado |
+|------------------|---------------------------------------------------------|------------------|
+| `functional`     | Pruebas unitarias, de integración y aserciones          | tester           |
+| `static`         | Tipado estricto, análisis estático y linting            | verifier         |
+| `security`       | Escaneo de vulnerabilidades y prevención de fugas       | verifier         |
+| `arch`           | Respeto a límites de arquitectura y CONSTITUTION.md     | verifier         |
 
 ---
 
 ## Formato del Completion Map
 
-Cada línea del mapa sigue el formato:
+Cada línea del mapa sigue el formato tabular plano:
 ```
-# [nombre]|[test-id]|[agente]|[status]
+# [item-id]|[layer]|[test-id]|[agente]|[status]
 ```
 
 Donde status es uno de:

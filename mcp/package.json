@@ -1,0 +1,24 @@
+{
+  "name": "@sdd-gl/mcp-server",
+  "version": "0.3.0",
+  "description": "Model Context Protocol (MCP) Server for Spec-Driven Development (SDD-GL)",
+  "main": "server.js",
+  "bin": {
+    "sdd-gl-mcp": "./server.js"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sdd",
+    "spec-driven-development",
+    "ai-agents",
+    "claude-code",
+    "antigravity"
+  ],
+  "author": "Gerardo Maidana",
+  "license": "MIT"
+}
