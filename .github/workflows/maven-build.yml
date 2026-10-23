@@ -9,10 +9,26 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    name: Build & Test
+  # BR-001: una entrada de matriz por servicio. Un fallo identifica el servicio sin
+  # arrastrar a los demás (fail-fast: false).
+  unit-tests:
+    name: Unit · ${{ matrix.service }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - sensor-registry
+          - data-simulator
+          - ingestion-service
+          - alerting-service
+          - query-api
+          - api-gateway
 
     steps:
       - name: Checkout
@@ -25,10 +41,38 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Make mvnw executable
+      - name: Unit tests ${{ matrix.service }}
         working-directory: services
-        run: chmod +x mvnw
+        run: ./mvnw -B -pl ${{ matrix.service }} test --no-transfer-progress
 
-      - name: Run test suite
+  # BR-002: los integration tests (*IT) no se omiten; van en un job propio porque
+  # usan Testcontainers (Docker está disponible en el runner de GitHub).
+  integration-tests:
+    name: IT · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - sensor-registry
+          - data-simulator
+          - ingestion-service
+          - alerting-service
+          - query-api
+          - api-gateway
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Integration tests ${{ matrix.service }}
         working-directory: services
-        run: ./mvnw -B test --no-transfer-progress
+        run: ./mvnw -B -pl ${{ matrix.service }} test -Dtest='*IT' --no-transfer-progress

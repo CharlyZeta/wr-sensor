@@ -42,7 +42,10 @@ class FIX0009DocsTest {
     void reproductionSteps_main() throws IOException {
         String seccion = obtenerSeccion5Quickstart();
         assertThat(seccion)
-                .contains("mvn -o test")
+                // FEAT-0018: el comando canónico del backend pasó de `mvn -o test` (Maven global)
+                // al wrapper incluido en el repo. El invariante (comando de test documentado y
+                // portable) es el mismo; ver nota de trazabilidad en contracts/FIX-0009.md.
+                .contains("./mvnw test")
                 .contains("cd web")
                 .contains("npm test")
                 .contains("npm run dev");
@@ -115,6 +118,6 @@ class FIX0009DocsTest {
                 .doesNotContain("C:/Program Files")
                 .doesNotContain("C:\\Program Files");
         assertThat(seccion)
-                .contains("mvn -o test");
+                .contains("./mvnw");
     }
 }

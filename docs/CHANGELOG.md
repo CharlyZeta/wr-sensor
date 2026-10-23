@@ -7,6 +7,32 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FEAT-0018] — 2026-10-23 — CI real por servicio, Maven wrapper y Quickstart reproducible
+
+`contracts/FEAT-0018.md` (7/7 ✅) · auditoría `.sdd/runs/FEAT-0018-20261023-190000.md`.
+Suite: **484 tests backend** (364 unit/assert + 120 IT) · `api-gateway` 167 (+7 docs:
+`FEAT0018CiDocsTest`).
+
+**Agregado:**
+- `.github/workflows/maven-build.yml`: dos matrices de 6 servicios — `unit-tests`
+  (`./mvnw -B -pl <servicio> test`) e `integration-tests` (`-Dtest='*IT'`, Testcontainers sobre el
+  Docker del runner). `fail-fast: false`, `permissions: contents: read`, concurrencia por rama.
+  Antes el repo no tenía **ningún** workflow: los 484 tests eran invisibles desde GitHub.
+- `FEAT0018CiDocsTest` (7 criterios mecánicos): matriz por servicio, ITs en el CI, ausencia de
+  `-DskipTests`, wrapper presente, README sin rutas absolutas y badges con fuente.
+
+**Corregido:**
+- Maven wrapper (`services/mvnw` + `mvnw.cmd` + `.mvn/wrapper/`, Maven 3.9.9) sobre el pom
+  agregador: el Quickstart ya no necesita Maven instalado ni rutas absolutas.
+- README: credenciales dev en texto plano reemplazadas por referencia a `DevUserSeeder` (hash BCrypt
+  en runtime); badge de tests = 484 enlazado a `docs/REGISTRO-SDD.md`; badge de CI enlazado al
+  workflow; totales de suites consistentes en README, RUNBOOK, REGISTRO-SDD y ESTADO-SDD.
+- `FIX0009DocsTest` pasa a exigir el comando con wrapper (AF-03), con nota de trazabilidad en
+  `contracts/FIX-0009.md`.
+- **Bug real encontrado por el CI**: `FEAT0010MainFlowIT` fallaba de noche porque la anomalía del
+  simulador (`salto-metros: 2.0`) no superaba `rangoNormalMax` con la oscilación diaria en fase
+  negativa (0.13 m de margen). Corregido por configuración (`salto-metros: 3.0`).
+
 ## [FEAT-0017] — 2026-10-02 — Banner visual de cabecera y assets de arquitectura en README.md
 
 `contracts/FEAT-0017.md` (6/6 ✅) · auditoría `.sdd/runs/FEAT-0017-20261002-200900.md`.

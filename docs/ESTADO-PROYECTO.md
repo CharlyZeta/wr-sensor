@@ -1,7 +1,7 @@
 # Estado del Proyecto — WR-Sensor (Water Level Monitoring Platform)
 
 > Bitácora de avance del proyecto bajo SDD-GL. Orquestador la actualiza al cerrar
-> cada Work Item. Última actualización: 2026-09-09.
+> cada Work Item. Última actualización: 2026-10-23.
 > Spec base: `docs/water-monitoring-spec.md`. Stack: `stack.md`.
 > Documentación consolidada: `README.md`, `docs/ARQUITECTURA.md`, `docs/API.md`,
 > `docs/RUNBOOK.md`, `docs/DECISIONES.md`, `docs/REGISTRO-SDD.md`.
@@ -346,6 +346,30 @@ compatibilidad) manteniendo la validación (payload inválido → DLQ).
 
 Regresión `alerting-service`: 10 unit + 2 ITs = 12 verdes. Audit:
 `.sdd/runs/FIX-0002-20260910-164923.md`.
+
+### 2p. `FEAT-0018` (RESOLVED 2026-10-23) — CI real por servicio, wrapper y quickstart reproducible
+
+Antes no había **ningún** workflow: 484 tests (357 unitarios + 120 ITs + 7 de docs) eran invisibles
+para cualquiera que entrara al repo, y el Quickstart hardcodeaba rutas de la máquina del autor.
+
+- **CI**: `.github/workflows/maven-build.yml` con dos matrices de 6 servicios (BR-001):
+  `unit-tests` (`./mvnw -B -pl <servicio> test`) e `integration-tests`
+  (`./mvnw -B -pl <servicio> test -Dtest='*IT'`, con Testcontainers sobre el Docker del runner).
+  `fail-fast: false`, `permissions: contents: read`, concurrencia por rama y **sin**
+  `-DskipTests` (BR-003).
+- **Wrapper**: `services/mvnw` + `mvnw.cmd` + `.mvn/wrapper/` (Maven 3.9.9) sobre el pom agregador
+  `services/pom.xml`; no hace falta Maven global (verificado: la máquina del autor no tiene `mvn`).
+- **README**: badge de CI enlazado al workflow, badge de tests = 484 con fuente
+  (`docs/REGISTRO-SDD.md`), Quickstart con wrapper y sin credenciales en texto plano.
+- **Hallazgo real de la primera corrida completa de ITs**: `FEAT0010MainFlowIT` fallaba desde las
+  18:00 UTC porque la anomalía del simulador (`salto-metros: 2.0`) no superaba `rangoNormalMax`
+  cuando la oscilación diaria estaba en fase negativa. El IT tenía 0.13 m de margen y solo pasaba
+  de mañana; nunca se detectó porque los `*IT` no estaban en el CI. Corregido por configuración
+  (`salto-metros: 3.0`), sin tocar la spec de FEAT-0010; criterio general:
+  `nivelBase - 0.5 + salto > rangoNormalMax`.
+- **Verificación local**: 364 unit + 120 ITs = **484 verdes** (los 6 módulos), más `FEAT0018CiDocsTest`
+  (7 criterios mecánicos AC-001..AC-007).
+- **Evidencia**: `contracts/FEAT-0018.md` (7/7), auditoría `.sdd/runs/FEAT-0018-20261023-190000.md`.
 
 ---
 

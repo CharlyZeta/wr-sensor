@@ -14,7 +14,11 @@ simulador:
     sigma-metros: 0.05
   anomalia:
     segundos: 10
-    salto-metros: 2.0
+    # El salto debe garantizar AC-005 de FEAT-0010 en cualquier fase del dia:
+    # nivelBase - amplitudDiaria(0.5) + salto > rangoNormalMax.
+    # Con 2.0, PARANA-RECONQUISTA (base 5.1 / max 7.0) daba 6.6-7.6 segun la hora y
+    # FEAT0010MainFlowIT fallaba de noche; con 3.0 el piso es 7.6.
+    salto-metros: 3.0
   lecturas:
     exchange: sensor.lecturas
     # FIX-0006 BR-001: version del schema del evento (configuracion, nunca hardcodeada en consumidores)

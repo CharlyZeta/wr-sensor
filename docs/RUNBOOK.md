@@ -35,7 +35,7 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 & …\mvn.cmd -o test -Dtest='FEAT0011MainFlowIT'
 ```
 
-### Resumen de suites (verde al 2026-09-14)
+### Resumen de suites (verde al 2026-10-23)
 
 | Módulo | Unit/assert | ITs | Total |
 |---|---|---|---|
@@ -44,13 +44,14 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 118 | 42 | 160 |
-| **Total** | **357** | **120** | **477** |
+| `api-gateway` | 125 | 42 | 167 |
+| **Total** | **364** | **120** | **484** |
 | `web/` (SPA) | 63 | — | 63 |
 
-> Los `*IT` no corren en `mvn test` (surefire los excluye): se ejecutan con
-> `mvn -o test -Dtest='*IT'` y requieren Docker Desktop (los de `api-gateway` no: usan
-> downstreams stub en proceso).
+> Los `*IT` no corren en `./mvnw test` (surefire los excluye): se ejecutan con
+> `./mvnw -o test -Dtest='*IT'` desde `services/` y requieren Docker Desktop (los de `api-gateway`
+> no: usan downstreams stub en proceso). En CI corren en el job `integration-tests` de
+> `.github/workflows/maven-build.yml`, en paralelo por servicio (FEAT-0018).
 
 ## 3. Credenciales y config dev
 

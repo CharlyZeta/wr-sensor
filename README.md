@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CharlyZeta/wr-sensor/actions"><img src="https://img.shields.io/github/actions/workflow/status/CharlyZeta/wr-sensor/maven-build.yml?branch=main&style=flat-square&label=CI" alt="CI" /></a>
-  <img src="https://img.shields.io/badge/tests-534%20passed-brightgreen?style=flat-square" alt="Tests 534 passed" />
+  <a href="https://github.com/CharlyZeta/wr-sensor/actions/workflows/maven-build.yml"><img src="https://img.shields.io/github/actions/workflow/status/CharlyZeta/wr-sensor/maven-build.yml?branch=main&style=flat-square&label=CI" alt="CI" /></a>
+  <a href="docs/REGISTRO-SDD.md"><img src="https://img.shields.io/badge/tests-484%20passed-brightgreen?style=flat-square" alt="Tests 484 passed" /></a>
   <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square" alt="Java 25" />
   <img src="https://img.shields.io/badge/Spring%20Boot-4.1%20WebFlux-green?style=flat-square" alt="Spring Boot 4.1" />
   <img src="https://img.shields.io/badge/TimescaleDB-Time%20Series-blue?style=flat-square" alt="TimescaleDB" />
@@ -44,7 +44,10 @@ sensor-registry  (CRUD + auth JWT de sensores, fuente de verdad de config)
 | `alerting-service` | `services/alerting-service` | Histéresis + notificación WS | WebFlux · Reactor RabbitMQ (consumer) · WebSocket |
 | `query-api` | `services/query-api` | Histórico/última lectura + WS tiempo real | WebFlux · R2DBC/TimescaleDB · Reactor RabbitMQ · WebSocket |
 
-Orquestación local: **`docker compose up -d --build`** (requiere `mvn -o install -DskipTests` previo en `services/`; ver `docs/RUNBOOK.md`).\n\nReglas de stack fijas en `stack.md` y `docs/SKILL.md` (hexagonal estricto, cero
+Orquestación local: **`docker compose up -d --build`** (requiere `./mvnw -o install -DskipTests`
+previo en `services/`; ver `docs/RUNBOOK.md`).
+
+Reglas de stack fijas en `stack.md` y `docs/SKILL.md` (hexagonal estricto, cero
 bloqueante, sin JPA, paginación keyset, DLQ/retry configurables).
 
 ---
@@ -75,7 +78,7 @@ sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico key
 
 Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
 paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
-`application.yml`, tests trazables a los contracts (BR/AC/AF) — **540 verdes** (477 backend + 63 del SPA).
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **547 verdes** (484 backend + 63 del SPA).
 Punto de entrada único con **CORS configurable y WebSocket autenticado** (`FEAT-0008`).
 Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 
@@ -128,11 +131,14 @@ Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
 | `FEAT-0016` | SPA: administración y demo (CRUD ADMIN + simulador) | ✅ RESOLVED | 12 (web) · docs 5 |
 | `FIX-0009` | Portabilidad Quickstart y DX del Frontend SPA | ✅ RESOLVED | docs 8 |
 | `FEAT-0017` | Banner visual de cabecera y assets de arquitectura | ✅ RESOLVED | docs 6 |
+| `FEAT-0018` | CI real por servicio + wrapper + quickstart reproducible | ✅ RESOLVED | docs 7 |
 
 **Suites verdes:** `sensor-registry` 123 · `data-simulator` 20 · `ingestion-service` 121 ·
-`alerting-service` 12 · `query-api` 41 · `api-gateway` 160 → **477 tests** del backend (JUnit 5; ITs
+`alerting-service` 12 · `query-api` 41 · `api-gateway` 167 → **484 tests** del backend (JUnit 5; ITs
 con Testcontainers — los del gateway usan downstreams stub) **+ 63 del SPA** (`web/`, Vitest + RTL +
-MSW). Detalle por módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e del SPA.
+MSW). La suite completa (unitaria **y** de integración) corre en GitHub Actions con una matriz por
+servicio: [`.github/workflows/maven-build.yml`](.github/workflows/maven-build.yml). Detalle por
+módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e del SPA.
 
 ---
 
@@ -174,7 +180,11 @@ npm run dev
 
 ### Credenciales de desarrollo
 
-Credenciales dev (auth FEAT-0006): `admin@wrsensor.local` / `Admin123!` · `viewer@wrsensor.local` / `Viewer123!`.
+No se publican en el README (regla del contrato FEAT-0018: nada de credenciales en texto plano).
+Las dos cuentas dev (`ADMIN` y `VIEWER`) las siembra `DevUserSeeder` al arrancar
+`services/sensor-registry`: los emails y las contraseñas por defecto están en sus constantes
+(`EMAIL_ADMIN` / `DEV_PASSWORD_ADMIN`, `EMAIL_VIEWER` / `DEV_PASSWORD_VIEWER`) y el hash BCrypt se
+genera en runtime — nunca hay password en claro en la base. Secretos de entorno: `.env.example`.
 
 ---
 
