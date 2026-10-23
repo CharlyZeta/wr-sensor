@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/CharlyZeta/wr-sensor/actions"><img src="https://img.shields.io/github/actions/workflow/status/CharlyZeta/wr-sensor/maven-build.yml?branch=main&style=flat-square&label=CI" alt="CI" /></a>
   <img src="https://img.shields.io/badge/tests-534%20passed-brightgreen?style=flat-square" alt="Tests 534 passed" />
   <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square" alt="Java 25" />
   <img src="https://img.shields.io/badge/Spring%20Boot-4.1%20WebFlux-green?style=flat-square" alt="Spring Boot 4.1" />
@@ -137,20 +138,25 @@ MSW). Detalle por módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e d
 
 ## 5. Quickstart
 
-Requisitos: JDK 25, Maven 3.9+, Node.js 20+, Docker Desktop.
+Requisitos: JDK 25, Node.js 20+, Docker Desktop. **Maven no hace falta**: el wrapper incluido lo
+resuelve solo.
 
 ### Backend (Java / Spring WebFlux)
 
 ```bash
-# 1) Tests unitarios de un servicio (offline, sin Docker)
-cd services/sensor-registry
-mvn -o test
+# 1) Tests unitarios de todos los servicios (offline, sin Docker)
+cd services
+./mvnw test
 
-# 2) Correr un IT con Testcontainers (requiere Docker Desktop)
-mvn -o test -Dtest='FEAT0001MainFlowIT'
+# 2) Tests unitarios de un solo modulo
+./mvnw -pl sensor-registry test
+
+# 3) Correr un IT con Testcontainers (requiere Docker Desktop)
+./mvnw -pl sensor-registry test -Dtest='FEAT0001MainFlowIT'
 ```
 
-> Nota: Si Maven o Java no están en el `PATH`, definir `JAVA_HOME` y usar el wrapper Maven (`mvn.cmd` o `./mvnw`). Ver detalles en `docs/RUNBOOK.md` §1 y §2.
+> En Windows usá `mvnw.cmd` en lugar de `./mvnw`. Si Maven o Java no están en el `PATH`, definir
+> `JAVA_HOME`; el wrapper no necesita Maven instalado. Ver `docs/RUNBOOK.md` §1 y §2.
 
 ### Frontend SPA (React / Vite)
 
