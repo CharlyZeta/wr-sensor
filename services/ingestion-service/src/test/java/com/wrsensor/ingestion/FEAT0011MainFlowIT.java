@@ -156,6 +156,8 @@ class FEAT0011MainFlowIT {
                     Thread.sleep(150);
                 }
             } catch (InterruptedException ignored) {
+            } catch (com.rabbitmq.client.AlreadyClosedException ignored) {
+                // el canal lo cierra tearDown; el hilo colector no debe reportarlo como fallo
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -184,15 +186,68 @@ class FEAT0011MainFlowIT {
         }
     }
 
+    /** Reintenta una condición hasta el deadline en lugar de dormir un tiempo fijo. */
+    private static boolean esperarHasta(java.util.function.BooleanSupplier condicion, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (condicion.getAsBoolean()) {
+                return true;
+            }
+            esperar(200);
+        }
+        return condicion.getAsBoolean();
+    }
+
+    /**
+     * Espera a que el consumidor haya declarado la topología de particiones.
+     *
+     * <p>Sin esta espera el test publica antes de que existan las colas de partición: el exchange
+     * topic no tiene bindings, el mensaje se descarta y el test falla de forma intermitente en
+     * runners lentos (visto en el primer run del CI de FEAT-0018). La sonda usa su propia conexión
+     * porque un {@code queueDeclarePassive} fallido cierra el canal.</p>
+     */
+    private static void esperarTopologiaIngesta() throws Exception {
+        long deadline = System.currentTimeMillis() + 30_000;
+        while (System.currentTimeMillis() < deadline) {
+            if (existeCola("queue.sensor.lecturas.p0")) {
+                return;
+            }
+            esperar(300);
+        }
+        throw new AssertionError("las colas de particion de sensor.lecturas no se declararon en 30 s");
+    }
+
+    private static boolean existeCola(String cola) {
+        com.rabbitmq.client.ConnectionFactory cf = new com.rabbitmq.client.ConnectionFactory();
+        cf.setHost(RABBIT.getHost());
+        cf.setPort(RABBIT.getFirstMappedPort());
+        cf.setUsername(RABBIT.getAdminUsername());
+        cf.setPassword(RABBIT.getAdminPassword());
+        try (Connection conn = cf.newConnection(); Channel ch = conn.createChannel()) {
+            ch.queueDeclarePassive(cola);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Test
     @DisplayName("integration-test:FEAT-0011-main — consume, persiste, publica eventos y rechaza a DLQ")
     void mainFlow_pipelineCompleto() throws Exception {
+        // El consumidor declara la topología de particiones al arrancar: publicar antes de eso
+        // descarta el mensaje (exchange sin bindings) y vuelve el test intermitente.
+        esperarTopologiaIngesta();
+
         // NORMAL (sin evento previo) + WARNING (cambio → evento) + sensor desconocido (→ DLQ).
         publicar(ID_NORMAL.toString(), "5.0");
         publicar(ID_NORMAL.toString(), "7.0");  // cambio NORMAL→WARNING → evento
         publicar(ID_WARNING.toString(), "5.2"); // NORMAL sin cambio
         publicar(ID_DESCONOCIDO.toString(), "5.0");
-        esperar(7000);
+
+        // El evento viaja por el outbox transaccional (poller): deadline en vez de sleep fijo.
+        assertThat(esperarHasta(() -> !alertas.isEmpty() && dlq.size() >= 1, 45_000))
+                .as("evento en `sensor.alertas` y rechazo en la DLQ dentro del deadline").isTrue();
+        esperar(500); // margen para que el resto del lote termine de procesarse
 
         assertThat(alertas).as("evento por cambio NORMAL→WARNING").hasSize(1);
         assertThat(alertas.get(0))
@@ -209,10 +264,16 @@ class FEAT0011MainFlowIT {
                 .build();
         io.r2dbc.spi.ConnectionFactory cf = new PostgresqlConnectionFactory(r2dbcCf);
         DatabaseClient db = DatabaseClient.create(cf);
-        Integer filas = db.sql("SELECT count(*) AS n FROM lectura")
-                .map((row, meta) -> row.get("n", Long.class))
-                .first().map(Long::intValue).block();
-        assertThat(filas).as("3 lecturas validas persistidas (AC-007)").isEqualTo(3);
+        java.util.concurrent.atomic.AtomicReference<Integer> filas =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        esperarHasta(() -> {
+            Integer n = db.sql("SELECT count(*) AS n FROM lectura")
+                    .map((row, meta) -> row.get("n", Long.class))
+                    .first().map(Long::intValue).block();
+            filas.set(n);
+            return n != null && n == 3;
+        }, 15_000);
+        assertThat(filas.get()).as("3 lecturas validas persistidas (AC-007)").isEqualTo(3);
         String severidadNormal = db.sql("SELECT severidad FROM lectura WHERE sensor_id = $1 AND valor = 7.0 LIMIT 1")
                 .bind(0, ID_NORMAL).map((row, meta) -> row.get("severidad", String.class)).first().block();
         assertThat(severidadNormal).isEqualTo("WARNING");

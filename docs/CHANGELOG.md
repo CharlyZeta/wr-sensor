@@ -32,6 +32,10 @@ Suite: **484 tests backend** (364 unit/assert + 120 IT) · `api-gateway` 167 (+7
 - **Bug real encontrado por el CI**: `FEAT0010MainFlowIT` fallaba de noche porque la anomalía del
   simulador (`salto-metros: 2.0`) no superaba `rangoNormalMax` con la oscilación diaria en fase
   negativa (0.13 m de margen). Corregido por configuración (`salto-metros: 3.0`).
+- **IT flaky encontrado por el CI**: `FEAT0011MainFlowIT` publicaba antes de que el consumidor
+  declarara la topología de particiones y el exchange descartaba los mensajes (fallaba sólo en el
+  runner, con contenedores fríos). Endurecido con espera activa de la topología y `deadline` en
+  lugar de `sleep`, sin cambiar ninguna aserción.
 
 ## [FEAT-0017] — 2026-10-02 — Banner visual de cabecera y assets de arquitectura en README.md
 
