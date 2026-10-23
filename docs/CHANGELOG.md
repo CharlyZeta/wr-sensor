@@ -15,9 +15,10 @@ Suite: **484 tests backend** (364 unit/assert + 120 IT) · `api-gateway` 167 (+7
 
 **Agregado:**
 - `.github/workflows/maven-build.yml`: dos matrices de 6 servicios — `unit-tests`
-  (`./mvnw -B -pl <servicio> test`) e `integration-tests` (`-Dtest='*IT'`, Testcontainers sobre el
-  Docker del runner). `fail-fast: false`, `permissions: contents: read`, concurrencia por rama.
-  Antes el repo no tenía **ningún** workflow: los 484 tests eran invisibles desde GitHub.
+  (`./mvnw -B -pl <servicio> test`) e `integration-tests` (`-Dtest='*IT' -DreuseForks=false`,
+  Testcontainers sobre el Docker del runner). `fail-fast: false`, `permissions: contents: read`,
+  concurrencia por rama. Antes el repo no tenía **ningún** workflow: los 484 tests eran invisibles
+  desde GitHub. CI verde: run #3 (12/12 jobs, 3 min 17 s).
 - `FEAT0018CiDocsTest` (7 criterios mecánicos): matriz por servicio, ITs en el CI, ausencia de
   `-DskipTests`, wrapper presente, README sin rutas absolutas y badges con fuente.
 

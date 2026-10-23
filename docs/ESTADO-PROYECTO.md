@@ -354,9 +354,10 @@ para cualquiera que entrara al repo, y el Quickstart hardcodeaba rutas de la má
 
 - **CI**: `.github/workflows/maven-build.yml` con dos matrices de 6 servicios (BR-001):
   `unit-tests` (`./mvnw -B -pl <servicio> test`) e `integration-tests`
-  (`./mvnw -B -pl <servicio> test -Dtest='*IT'`, con Testcontainers sobre el Docker del runner).
-  `fail-fast: false`, `permissions: contents: read`, concurrencia por rama y **sin**
-  `-DskipTests` (BR-003).
+  (`./mvnw -B -pl <servicio> test -Dtest='*IT' -DreuseForks=false`, con Testcontainers sobre el
+  Docker del runner). `fail-fast: false`, `permissions: contents: read`, concurrencia por rama y
+  **sin** `-DskipTests` (BR-003). Un JVM por clase de IT: los contextos de Spring cacheados dejaban
+  pollers vivos contra contenedores detenidos y contaminaban la clase siguiente.
 - **Wrapper**: `services/mvnw` + `mvnw.cmd` + `.mvn/wrapper/` (Maven 3.9.9) sobre el pom agregador
   `services/pom.xml`; no hace falta Maven global (verificado: la máquina del autor no tiene `mvn`).
 - **README**: badge de CI enlazado al workflow, badge de tests = 484 con fuente
@@ -367,8 +368,13 @@ para cualquiera que entrara al repo, y el Quickstart hardcodeaba rutas de la má
   de mañana; nunca se detectó porque los `*IT` no estaban en el CI. Corregido por configuración
   (`salto-metros: 3.0`), sin tocar la spec de FEAT-0010; criterio general:
   `nivelBase - 0.5 + salto > rangoNormalMax`.
+- **Segundo hallazgo**: `FEAT0011MainFlowIT` publicaba antes de que el consumidor declarara la
+  topología de particiones (mensajes descartados por el exchange). Endurecido con espera activa de
+  `queue.sensor.lecturas.p0` y deadlines en lugar de `sleep`, sin cambiar aserciones.
 - **Verificación local**: 364 unit + 120 ITs = **484 verdes** (los 6 módulos), más `FEAT0018CiDocsTest`
   (7 criterios mecánicos AC-001..AC-007).
+- **CI remoto**: run [#3](https://github.com/CharlyZeta/wr-sensor/actions/runs/40035751387) —
+  12/12 jobs `success` en 3 min 17 s.
 - **Evidencia**: `contracts/FEAT-0018.md` (7/7), auditoría `.sdd/runs/FEAT-0018-20261023-190000.md`.
 
 ---
