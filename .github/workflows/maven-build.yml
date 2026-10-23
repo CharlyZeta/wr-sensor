@@ -75,4 +75,8 @@ jobs:
 
       - name: Integration tests ${{ matrix.service }}
         working-directory: services
-        run: ./mvnw -B -pl ${{ matrix.service }} test -Dtest='*IT' --no-transfer-progress
+        # reuseForks=false: un JVM por clase de IT. Los contextos de Spring quedan cacheados entre
+        # clases y sus pollers/consumidores siguen vivos contra contenedores ya detenidos; en el
+        # runner eso contamina al IT siguiente (FEAT0011MainFlowIT fallaba sólo en CI). Aislar cada
+        # clase lo elimina de raíz.
+        run: ./mvnw -B -pl ${{ matrix.service }} test -Dtest='*IT' -DreuseForks=false --no-transfer-progress
