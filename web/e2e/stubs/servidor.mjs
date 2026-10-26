@@ -131,10 +131,10 @@ const servidor = createServer(async (req, res) => {
       if (forzado === '500') {
         return error(res, 500, 'INTERNAL_ERROR', 'fallo simulado')
       }
-      if (credenciales.email === 'admin@wrsensor.local' && credenciales.password === 'Admin123!') {
+      if (credenciales.email === 'admin@wrsensor.local' && credenciales.password === 'localdev') {
         return json(res, 200, { token: 'e2e-token', rol: 'ADMIN', expiraEnSegundos: 3600 })
       }
-      if (credenciales.email === 'viewer@wrsensor.local' && credenciales.password === 'Viewer123!') {
+      if (credenciales.email === 'viewer@wrsensor.local' && credenciales.password === 'localdev') {
         return json(res, 200, { token: 'e2e-token', rol: 'VIEWER', expiraEnSegundos: 3600 })
       }
       return error(res, 401, 'INVALID_CREDENTIALS', 'credenciales invalidas')

@@ -85,8 +85,9 @@ id malformado → `400 SENSOR_INVALID_ID` (code nuevo aprobado en HO-Gate); sens
 `Usuario` (tabla `usuario`: email único + `passwordHash` **BCrypt**). El `RolFilter`
 ahora **verifica firma + exp** de cada `Authorization: Bearer <jwt>` (reemplaza el
 header literal `Bearer ROLE` de v1-fake — AC-008: el literal ya no es aceptado).
-Decisiones HO-Gate: seed dev de 2 usuarios (`admin@wrsensor.local`/`Admin123!`,
-`viewer@wrsensor.local`/`Viewer123!` vía `DevUserSeeder`, upsert por email),
+Decisiones HO-Gate: seed dev de 2 usuarios (`admin@wrsensor.local` y
+`viewer@wrsensor.local` vía `DevUserSeeder`, upsert por email; la password dev es el placeholder
+`localdev` desde FEAT-0019),
 expiración 1 h configurable (`auth.jwt.expiration-seconds`), secret configurable
 (`auth.jwt.secret` / env `AUTH_JWT_SECRET`), sin refresh/blacklist en v1. Los ITs de
 FEAT-0001/0002/0003 se migraron a tokens reales vía login (decisión humana).
@@ -376,6 +377,27 @@ para cualquiera que entrara al repo, y el Quickstart hardcodeaba rutas de la má
 - **CI remoto**: run [#3](https://github.com/CharlyZeta/wr-sensor/actions/runs/40035751387) —
   12/12 jobs `success` en 3 min 17 s.
 - **Evidencia**: `contracts/FEAT-0018.md` (7/7), auditoría `.sdd/runs/FEAT-0018-20261023-190000.md`.
+
+### 2q. `FEAT-0019` (RESOLVED 2026-10-26) — Credenciales dev, README bilingüe y decisiones
+
+Contrato de la campaña de auditoría de portfolio: el repo ya aprobaba el escaneo técnico, pero
+perdía puntos en tres señales de cómo trabaja una persona detrás.
+
+- **Credenciales dev**: placeholder único `localdev` en `docker-compose.yml`, en los `application.yml`
+  de `ingestion-service` y `query-api`, en el seed (`DevUserSeeder`) y en el default de
+  `RegistryProperties`; `.env.example` documenta las variables. `git grep` de `Admin123!`/`Viewer123!`
+  sobre la configuración: **sin coincidencias**. Tests y fixtures (backend y SPA) alineados.
+- **README bilingüe**: `README.es.md` conserva el original; `README.md` es la versión en inglés, con
+  link cruzado, las mismas 6 secciones, la misma tabla de 28 work items, los mismos badges, los
+  mismos totales y los mismos diagramas (sin traducir).
+- **Decisiones y trade-offs**: sección nueva en los dos idiomas con 3 decisiones, cada una con su
+  costo, y una **decisión revertida** real (`FIX-0005`: cola única con estado en memoria → pérdida
+  de alertas al escalar → particionamiento por `sensorId` con `x-consistent-hash`).
+- **Verificación mecánica**: `FEAT0019DocsTest` (7 criterios) + `FEAT0017DocsTest` y
+  `FEAT0008DocsTest` actualizados a la realidad bilingüe.
+- **Suites**: 371 unit + 120 IT = **491 backend** + 63 SPA = **554**; ITs de auth/ingestion/query
+  verdes con `localdev`.
+- **Evidencia**: `contracts/FEAT-0019.md` (8/8), auditoría `.sdd/runs/FEAT-0019-20261026-124000.md`.
 
 ---
 

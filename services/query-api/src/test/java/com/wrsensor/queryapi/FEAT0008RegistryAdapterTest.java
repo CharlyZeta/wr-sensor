@@ -94,7 +94,7 @@ class FEAT0008RegistryAdapterTest {
     private RegistrySensoresAdapter adapter(int limitPagina, int maxSensores, long timeoutMs,
                                             long conexionTimeoutMs) {
         RegistryProperties cfg = new RegistryProperties(baseUrl,
-                new RegistryProperties.Auth("viewer@wrsensor.local", "Viewer123!"), timeoutMs,
+                new RegistryProperties.Auth("viewer@wrsensor.local", "localdev"), timeoutMs,
                 conexionTimeoutMs, limitPagina, maxSensores);
         return new RegistrySensoresAdapter(cfg, Clock.fixed(T0, ZoneOffset.UTC));
     }

@@ -35,7 +35,7 @@ function renderApp(ruta = '/mapa') {
 async function entrar(
   usuario: ReturnType<typeof userEvent.setup>,
   email = 'admin@wrsensor.local',
-  password = 'Admin123!',
+  password = 'localdev',
 ) {
   await usuario.type(screen.getByLabelText('Usuario'), email)
   await usuario.type(screen.getByLabelText('Contraseña'), password)
@@ -100,7 +100,7 @@ describe('FEAT-0009 · rol y autorización en la UI (AF-06, A14)', () => {
   it('AF-06: VIEWER no ve el chip de administrador ni acciones de escritura', async () => {
     const usuario = userEvent.setup()
     renderApp()
-    await entrar(usuario, 'viewer@wrsensor.local', 'Viewer123!')
+    await entrar(usuario, 'viewer@wrsensor.local', 'localdev')
 
     expect(screen.getByText('VIEWER')).toBeInTheDocument()
     expect(screen.getByText('sólo lectura')).toBeInTheDocument()
@@ -225,7 +225,7 @@ describe('FEAT-0009 · login', () => {
     const usuario = userEvent.setup()
     renderApp()
     await usuario.type(screen.getByLabelText('Usuario'), 'admin@wrsensor.local')
-    await usuario.type(screen.getByLabelText('Contraseña'), 'Admin123!')
+    await usuario.type(screen.getByLabelText('Contraseña'), 'localdev')
     await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
 
     await screen.findByRole('alert')

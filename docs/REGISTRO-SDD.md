@@ -40,6 +40,7 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | FIX-0009 | Portabilidad Quickstart en README.md y DX de la SPA | 2026-10-01 | 2026-10-01 | ✅ 8/8 | Gateway docs (8) · `FIX0009DocsTest` |
 | FEAT-0017 | Banner visual de cabecera y assets de arquitectura | 2026-10-02 | 2026-10-02 | ✅ 6/6 | Gateway docs (6) · `FEAT0017DocsTest` |
 | FEAT-0018 | CI real por servicio + wrapper + Quickstart reproducible | 2026-10-23 | 2026-10-23 | ✅ 7/7 | Workflow `.github/workflows/maven-build.yml` · `FEAT0018CiDocsTest` (7) |
+| FEAT-0019 | Credenciales dev, README bilingüe y registro de decisiones | 2026-10-26 | 2026-10-26 | ✅ 8/8 | `README.md` + `README.es.md` · `FEAT0019DocsTest` (7) |
 
 > FEAT-0001: completado en sesiones previas (bitácora). FEAT-0002 quedó
 > interrumpido en Main Flow ⏳ y se reanudó/cerró el 2026-09-09.
@@ -58,9 +59,9 @@ de `contracts/*.md` y audits `.sdd/runs/`.
 | `ingestion-service` | 88 | 33 | `RangoFisicoEvaluadorTest` 5 · `IngestorLecturasTest` 17 · `SeveridadEvaluadorTest` 3 · `ParticionesPlanTest` 7 · `FIX0005ConsumerTest` 9 · `FIX0005DocsTest` 4 · `FIX0006EsquemaTest` 6 · `FIX0006ParseoTest` 8 · `FIX0006SecuenciaTest` 5 · `FIX0006DocsTest` 4 · `CircuitoResilienciaTest` 5 · `FIX0007ResilienciaTest` 10 · `FIX0007ObservabilidadTest` 2 · `FIX0007DocsTest` 3 · ITs (FEAT-0011 + FIX-0003 + FIX-0004 + FIX-0005 + FIX-0006 + FIX-0007) |
 | `alerting-service` | 10 | 2 | `GestorAlertasTest` 6 · `EventoParseTest` 1 · `FIX0002AcTest` 3 |
 | `query-api` | 33 | 8 | `CursorLecturasTest` 2 · `QueryServiceTest` 5 · `FIX0006RealtimeTest` 4 · `FEAT0008ResumenTest` 7 · `FEAT0008RegistryAdapterTest` 15 · ITs (`FEAT0013MainFlowIT` 1 + `FEAT0008ResumenIT` 7) |
-| `api-gateway` | 125 | 42 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · `VerificadorJwtTest` 7 · `AutenticadorWsTest` 8 · `FiltroCorsTest` 11 · `FEAT0008DocsTest` 11 · `FIX0009DocsTest` 8 · `FEAT0017DocsTest` 6 · `FEAT0018CiDocsTest` 7 · ITs (`FEAT0007MainFlowIT` 16 + `FEAT0008MainFlowIT` 13 + `FEAT0009HostingIT` 5 + `FIX0008MainFlowIT` 8) |
+| `api-gateway` | 132 | 42 | `TablaRutasTest` 9 · `RateLimiterTest` 7 · `FiltroRateLimitTest` 6 · `ConfiguracionGatewayTest` 5 · `CorrelacionTest` 4 · `VerificadorJwtTest` 7 · `AutenticadorWsTest` 8 · `FiltroCorsTest` 11 · `FEAT0008DocsTest` 11 · `FIX0009DocsTest` 8 · `FEAT0017DocsTest` 6 · `FEAT0018CiDocsTest` 7 · `FEAT0019DocsTest` 7 · ITs (`FEAT0007MainFlowIT` 16 + `FEAT0008MainFlowIT` 13 + `FEAT0009HostingIT` 5 + `FIX0008MainFlowIT` 8) |
 
-**Total: 364 unit/assert + 120 ITs = 484 verdes** (backend) **+ 63 tests del SPA** (`web/`, Vitest+RTL+MSW) (JUnit 5, AssertJ, StepVerifier,
+**Total: 371 unit/assert + 120 ITs = 491 verdes** (backend) **+ 63 tests del SPA** (`web/`, Vitest+RTL+MSW) (JUnit 5, AssertJ, StepVerifier,
 WebTestClient, Testcontainers). Los `*IT` se corren con `./mvnw -o test -Dtest='*IT'` desde
 `services/` (los de `api-gateway` no necesitan Docker: usan downstreams stub en proceso) y en CI
 corren en el job `integration-tests` de [`.github/workflows/maven-build.yml`](../.github/workflows/maven-build.yml),

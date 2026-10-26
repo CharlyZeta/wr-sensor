@@ -33,7 +33,7 @@ class FIX0007ObservabilidadTest {
         return new IngestionProperties(
                 300L,
                 new IngestionProperties.Registry("http://localhost:8080",
-                        new IngestionProperties.Registry.Auth("viewer@wrsensor.local", "Viewer123!"),
+                        new IngestionProperties.Registry.Auth("viewer@wrsensor.local", "pw-muy-secreta-123"),
                         2000L, 1000L,
                         new IngestionProperties.Registry.Cache(300L),
                         new IngestionProperties.Registry.Circuito(3, 30L, 2)),
@@ -111,6 +111,6 @@ class FIX0007ObservabilidadTest {
                 .contains("\"cacheVencidasUsadas\":0")
                 .contains("\"llamadas\":0");
         assertThat(json).as("sin datos de sensores ni credenciales")
-                .doesNotContain("sensorId", "codigo", "email", "password", "token", "Viewer123");
+                .doesNotContain("sensorId", "codigo", "email", "password", "token", "pw-muy-secreta-123");
     }
 }

@@ -186,12 +186,15 @@ class FEAT0008DocsTest {
      * en lugar de fijar un número (el snapshot se desactualiza en cada work item; la consistencia no).
      */
     @Test
-    @DisplayName("BR-011: los totales de suites coinciden entre README, RUNBOOK, REGISTRO-SDD y ESTADO-SDD")
+    @DisplayName("BR-011: los totales de suites coinciden entre los dos README, RUNBOOK, REGISTRO-SDD y ESTADO-SDD")
     void br011_totalesConsistentes() throws IOException {
         String runbook = leer("docs/RUNBOOK.md");
         String estado = leer("docs/ESTADO-SDD.md");
         String registro = leer("docs/REGISTRO-SDD.md");
-        String readme = leer("README.md");
+        // FEAT-0019: README bilingüe. README.md está en inglés y README.es.md en español: los dos
+        // declaran los mismos totales y se comparan entre sí y contra los otros tres documentos.
+        String readmeEn = leer("README.md");
+        String readmeEs = leer("README.es.md");
 
         String tablaTotal = "\\|\\s*\\*\\*Total\\*\\*\\s*\\|\\s*\\*\\*(\\d+)\\*\\*\\s*\\|\\s*\\*\\*(\\d+)\\*\\*"
                 + "\\s*\\|\\s*\\*\\*(\\d+)\\*\\*";
@@ -208,20 +211,33 @@ class FEAT0008DocsTest {
 
         String total = runbookTotales.get(2);
         // El README publica el total del backend y, desde FEAT-0009, también el del SPA: se verifican
-        // ambos para que la suma no quede desactualizada en ninguna de sus dos menciones.
-        assertThat(readme).as("el README declara el total del backend")
-                .contains("**" + total + " tests**");
-        String sumaTotal = grupos(readme, "—\\s*\\*\\*(\\d+) verdes\\*\\*").stream().findFirst()
-                .orElseThrow(() -> new AssertionError("el README no declara el total de tests verdes"));
-        assertThat(Integer.parseInt(sumaTotal))
-                .as("el total de verdes del README es >= el del backend (incluye el SPA)")
+        // ambos en cada idioma para que ninguna de las dos versiones quede mintiendo.
+        for (String readme : java.util.List.of(readmeEn, readmeEs)) {
+            assertThat(readme).as("el README declara el total del backend")
+                    .contains("**" + total + " tests**");
+        }
+        int verdesEn = verdesDelReadme(readmeEn, "—\\s*\\*\\*(\\d+) passing\\*\\*", "inglés");
+        int verdesEs = verdesDelReadme(readmeEs, "—\\s*\\*\\*(\\d+) verdes\\*\\*", "español");
+        assertThat(verdesEn)
+                .as("el total de verdes del README en inglés coincide con el del español")
+                .isEqualTo(verdesEs)
                 .isGreaterThanOrEqualTo(Integer.parseInt(total));
         // El README declara además la suite del SPA (cuyo número cambia con cada parte de la serie:
-        // se verifica la mención, no el valor, para no convertir este test en un snapshot).
-        assertThat(grupos(readme, "\\+\\s*(\\d+) del SPA").stream().findFirst()
-                .orElseThrow(() -> new AssertionError("el README no menciona la suite del SPA")))
-                .as("el README publica la cantidad de tests del SPA")
-                .isNotBlank();
+        // se verifica la mención y la coincidencia entre idiomas, no el valor absoluto).
+        String spaEn = primerGrupo(readmeEn, "\\+\\s*(\\d+) for the SPA", "el README no menciona la suite del SPA");
+        String spaEs = primerGrupo(readmeEs, "\\+\\s*(\\d+) del SPA", "el README en español no menciona la suite del SPA");
+        assertThat(spaEn).as("el README en inglés publica la cantidad de tests del SPA").isNotBlank()
+                .isEqualTo(spaEs);
+    }
+
+    private static int verdesDelReadme(String readme, String patron, String idioma) {
+        return Integer.parseInt(primerGrupo(readme, patron,
+                "el README en " + idioma + " no declara el total de tests verdes"));
+    }
+
+    private static String primerGrupo(String texto, String patron, String mensaje) {
+        return grupos(texto, patron).stream().findFirst()
+                .orElseThrow(() -> new AssertionError(mensaje));
     }
 
     private static java.util.List<String> grupos(String texto, String patron) {

@@ -7,6 +7,26 @@
 > Formato inspirado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), fechas ISO-8601.
 > Índice de estado vigente: [`docs/ESTADO-SDD.md`](ESTADO-SDD.md) · decisiones: [`docs/DECISIONES.md`](DECISIONES.md).
 
+## [FEAT-0019] — 2026-10-26 — Credenciales dev, README bilingüe y registro de decisiones
+
+`contracts/FEAT-0019.md` (8/8 ✅) · auditoría `.sdd/runs/FEAT-0019-20261026-124000.md`.
+Suite: **491 tests backend** (371 unit/assert + 120 IT) · `api-gateway` 174 (+7 docs:
+`FEAT0019DocsTest`).
+
+**Cambiado:**
+- **Credenciales dev**: `Admin123!` / `Viewer123!` reemplazadas por el placeholder único `localdev`
+  en `docker-compose.yml`, en los `application.yml` de `ingestion-service` y `query-api`, en el seed
+  (`DevUserSeeder`) y en el default de `RegistryProperties`. Tests y fixtures de la SPA alineados;
+  `.env.example` documenta `AUTH_JWT_SECRET`, `REGISTRY_AUTH_PASSWORD` y `QUERY_REGISTRY_PASS`.
+- **README bilingüe**: `README.md` (inglés) y `README.es.md` (español), con link cruzado, la misma
+  estructura de 6 secciones, la misma tabla de 28 work items, los mismos badges, los mismos totales
+  y los mismos diagramas sin traducir.
+- **Sección "Decisiones y trade-offs" / "Decisions & trade-offs"** en los dos README: 3 decisiones
+  con su costo, incluida una **revertida** real (`FIX-0005`: cola única con estado en memoria →
+  alertas perdidas al escalar → particionamiento por `sensorId`).
+- **Docs tests**: `FEAT0019DocsTest` (7 criterios nuevos); `FEAT0017DocsTest` y
+  `FEAT0008DocsTest.br011` ahora verifican los dos idiomas y la consistencia de totales entre ambos.
+
 ## [FEAT-0018] — 2026-10-23 — CI real por servicio, Maven wrapper y Quickstart reproducible
 
 `contracts/FEAT-0018.md` (7/7 ✅) · auditoría `.sdd/runs/FEAT-0018-20261023-190000.md`.

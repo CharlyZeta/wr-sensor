@@ -96,6 +96,7 @@ Criterios de completitud: 567/567 ✅ en los 26 resueltos
 | FEAT-0016 | **SPA (`web/`)** — administración y demo (CRUD + simulador) | 31/31 ✅ | ADR-0021 · `web/` 12 tests + `FEAT0016DocsTest` 5 |
 | FIX-0009 | `api-gateway` / `README.md` — portabilidad Quickstart y DX de la SPA | 8/8 ✅ | `.sdd/runs/FIX-0009-20261001-071700.md` · `FIX0009DocsTest` 8 |
 | FEAT-0018 | **CI** — workflow por servicio + wrapper + Quickstart reproducible | 7/7 ✅ | `.github/workflows/maven-build.yml` · `.sdd/runs/FEAT-0018-20261023-190000.md` · `FEAT0018CiDocsTest` 7 |
+| FEAT-0019 | **Credenciales dev + README bilingüe + decisiones** | 8/8 ✅ | `README.md`/`README.es.md` · `.sdd/runs/FEAT-0019-20261026-124000.md` · `FEAT0019DocsTest` 7 |
 
 > Los conteos exactos de tests son **por módulo** (tabla siguiente): un mismo archivo de test puede
 > cubrir criterios de más de un contract, así que atribuir tests a un contract individual sería
@@ -111,8 +112,8 @@ Criterios de completitud: 567/567 ✅ en los 26 resueltos
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 125 | 42 | 167 |
-| **Total** | **364** | **120** | **484** |
+| `api-gateway` | 132 | 42 | 174 |
+| **Total** | **371** | **120** | **491** |
 | `web/` (SPA) | 63 | — | 63 |
 
 Cómo reproducirlo:

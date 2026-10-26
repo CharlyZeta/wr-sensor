@@ -18,7 +18,7 @@ class BCryptPasswordVerifierTest {
     @Test
     @DisplayName("BR-001: el hash BCrypt matchea la password original y no es igual al texto plano")
     void testBR001_hashNoEsPlaintextYMatchea() {
-        String raw = "Admin123!";
+        String raw = "localdev";
         StepVerifier.create(verifier.matches(raw, "$2a$10$hashinvalido"))
                 .expectNext(false)
                 .verifyComplete();

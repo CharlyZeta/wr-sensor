@@ -25,7 +25,8 @@ public record RegistryProperties(String baseUrl, Auth auth, Long timeoutMs, Long
     }
 
     public Auth authOrDefault() {
-        return auth == null ? new Auth("viewer@wrsensor.local", "Viewer123!") : auth;
+        // FEAT-0019: mismo placeholder dev que el seed y los application.yml (nunca una password real).
+        return auth == null ? new Auth("viewer@wrsensor.local", "localdev") : auth;
     }
 
     public long timeoutMsOrDefault() {

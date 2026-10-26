@@ -96,7 +96,8 @@ services:
       SPRING_RABBITMQ_PASSWORD: wrsensor
       REGISTRY_URL: http://sensor-registry:8080
       REGISTRY_AUTH_EMAIL: viewer@wrsensor.local
-      REGISTRY_AUTH_PASSWORD: Viewer123!
+      # FEAT-0019: credencial dev como placeholder; el seed (DevUserSeeder) usa el mismo valor.
+      REGISTRY_AUTH_PASSWORD: ${REGISTRY_AUTH_PASSWORD:-localdev}
       # FIX-0005: particiones del consumo. Para escalar con `--scale`, cada instancia
       # necesita su propio subconjunto: INGESTION_PARTICIONES_ASIGNADAS=0 / 1 / 2,3
       # (ver docs/RUNBOOK.md §Escalado horizontal de ingestion).

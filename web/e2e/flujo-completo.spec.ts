@@ -10,8 +10,8 @@ import type { Page } from '@playwright/test'
  * documentación promete: 404 de la API sin HTML, degradación por `code` y sesión que se cierra.
  */
 
-const ADMIN = { email: 'admin@wrsensor.local', password: 'Admin123!' }
-const VIEWER = { email: 'viewer@wrsensor.local', password: 'Viewer123!' }
+const ADMIN = { email: 'admin@wrsensor.local', password: 'localdev' }
+const VIEWER = { email: 'viewer@wrsensor.local', password: 'localdev' }
 
 async function entrar(page: Page, usuario = ADMIN): Promise<void> {
   await page.getByLabel('Usuario').fill(usuario.email)

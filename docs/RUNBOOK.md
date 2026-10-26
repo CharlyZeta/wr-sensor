@@ -44,8 +44,8 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 | `ingestion-service` | 88 | 33 | 121 |
 | `alerting-service` | 10 | 2 | 12 |
 | `query-api` | 33 | 8 | 41 |
-| `api-gateway` | 125 | 42 | 167 |
-| **Total** | **364** | **120** | **484** |
+| `api-gateway` | 132 | 42 | 174 |
+| **Total** | **371** | **120** | **491** |
 | `web/` (SPA) | 63 | — | 63 |
 
 > Los `*IT` no corren en `./mvnw test` (surefire los excluye): se ejecutan con
@@ -55,8 +55,8 @@ $env:IT_TIMESCALE_IMAGE = "timescale/timescaledb:latest-pg16"   # docker pull pr
 
 ## 3. Credenciales y config dev
 
-Auth (sensor-registry): `admin@wrsensor.local` / `Admin123!` · `viewer@wrsensor.local` /
-`Viewer123!` (seed automático `DevUserSeeder`; email-único, upsert). En entornos
+Auth (sensor-registry): `admin@wrsensor.local` / `localdev` · `viewer@wrsensor.local` /
+`localdev` (seed automático `DevUserSeeder`; email-único, upsert). En entornos
 reales setear `AUTH_JWT_SECRET`.
 
 Secretos/env relevantes: `AUTH_JWT_SECRET`, `R2DBC_*`, `RABBIT_*`, `REGISTRY_URL`
@@ -280,7 +280,7 @@ handshake WS): pasa sin headers y sin bloqueo.
 ```powershell
 $token = (Invoke-RestMethod -Method POST http://localhost:8084/api/auth/login `
   -ContentType 'application/json' `
-  -Body '{"email":"viewer@wrsensor.local","password":"Viewer123!"}').token
+  -Body '{"email":"viewer@wrsensor.local","password":"localdev"}').token
 
 # navegador / websocat: el token va por query string (el upgrade no acepta headers propios)
 websocat "ws://localhost:8084/ws/alertas?token=$token"
@@ -308,7 +308,7 @@ Configuración (`services/query-api/src/main/resources/application.yml`, prefijo
 | Pieza | Env | Default |
 |---|---|---|
 | URL del registry | `REGISTRY_URL` | `http://localhost:8080` |
-| Credenciales de servicio (VIEWER) | `QUERY_REGISTRY_EMAIL` / `QUERY_REGISTRY_PASS` | `viewer@wrsensor.local` / `Viewer123!` |
+| Credenciales de servicio (VIEWER) | `QUERY_REGISTRY_EMAIL` / `QUERY_REGISTRY_PASS` | `viewer@wrsensor.local` / `localdev` |
 | Timeout de respuesta | `QUERY_REGISTRY_TIMEOUT_MS` | 5000 ms |
 | Timeout de conexión | `QUERY_REGISTRY_CONEXION_TIMEOUT_MS` | 2000 ms |
 | Página del listado keyset | `QUERY_REGISTRY_LIMIT_PAGINA` | 200 |
@@ -452,7 +452,7 @@ keyset**:
 # el WS del detalle se puede probar a mano (el token va en el query: FEAT-0008)
 $token = (Invoke-RestMethod -Method POST http://localhost:8084/api/auth/login `
   -ContentType 'application/json' `
-  -Body '{"email":"viewer@wrsensor.local","password":"Viewer123!"}').token
+  -Body '{"email":"viewer@wrsensor.local","password":"localdev"}').token
 websocat "ws://localhost:8084/ws/sensores/<uuid-del-sensor>?token=$token"
 # → {"sensorId":"…","timestamp":"…","valor":21.5,"unidadMedida":"CELSIUS","calidad":"OK"}
 # el payload NO trae severidad: el detalle la toma del último dato conocido (histórico/resumen)

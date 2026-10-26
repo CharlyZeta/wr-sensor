@@ -1,0 +1,241 @@
+# WR-Sensor — Water Level Monitoring Platform
+
+🇬🇧 [Read in English](README.md)
+
+<p align="center">
+  <img src="docs/assets/wrsensor-banner.jpg" alt="WR-Sensor Architecture Banner" width="100%" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/CharlyZeta/wr-sensor/actions/workflows/maven-build.yml"><img src="https://img.shields.io/github/actions/workflow/status/CharlyZeta/wr-sensor/maven-build.yml?branch=main&style=flat-square&label=CI" alt="CI" /></a>
+  <a href="docs/REGISTRO-SDD.md"><img src="https://img.shields.io/badge/tests-491%20passed-brightgreen?style=flat-square" alt="Tests 491 passed" /></a>
+  <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square" alt="Java 25" />
+  <img src="https://img.shields.io/badge/Spring%20Boot-4.1%20WebFlux-green?style=flat-square" alt="Spring Boot 4.1" />
+  <img src="https://img.shields.io/badge/TimescaleDB-Time%20Series-blue?style=flat-square" alt="TimescaleDB" />
+  <img src="https://img.shields.io/badge/RabbitMQ-Reactor-orange?style=flat-square" alt="RabbitMQ" />
+  <img src="https://img.shields.io/badge/SDD--GL-v0.4.0-purple?style=flat-square" alt="SDD-GL v0.4.0" />
+</p>
+
+Plataforma de monitoreo de altura de agua (ríos Paraná y Salado, Santa Fe) desarrollada
+con **Spec-Driven Development Gate/Loop (SDD-GL)**. Cada funcionalidad nace como un
+*Contract* (`contracts/FEAT-*.md` / `FIX-*.md`) que pasa por un Gate de aprobación
+humana (HO-Gate) y luego un Loop autónomo de implementación + tests hasta
+`RESOLVED`.
+
+> Estado al **2026-10-25**: 28 Work Items cerrados (19 FEAT + 9 FIX).
+
+---
+
+## Decisiones y trade-offs
+
+### 1. Keyset pagination en lugar de OFFSET
+
+**Decisión:** toda la paginación es keyset (`WHERE id > :cursor`), nunca `OFFSET`.
+**Por qué:** con OFFSET cada página obliga a la base a recorrer y descartar todas las filas
+anteriores; en una tabla de series temporales que crece sin techo, el costo crece con la página.
+**Costo:** no se puede saltar a una página arbitraria, y el cliente tiene que llevar el cursor.
+Para scroll infinito fue aceptable; para un backoffice con paginación numérica habría sido un error.
+
+### 2. Particionar el consumo de ingestion (decisión revertida)
+
+**Primero hice:** una cola única `sensor.lecturas` con consumidores competidores y la última
+severidad por sensor en un `Map` en memoria de cada instancia.
+**Se rompió por:** al escalar a dos instancias para absorber el pico, ese estado por instancia se
+repartió entre procesos: la lectura anterior de un sensor la había procesado la instancia A y la
+siguiente caía en B, así que las transiciones reales de severidad se perdían y no se emitía ninguna
+alerta. Con una sola instancia el test pasaba siempre; el problema apareció al probar el escalado
+(`FIX-0005`).
+**Migramos a:** particionamiento por `sensorId` con un exchange `x-consistent-hash`, una cola por
+partición (`queue.sensor.lecturas.p0..pN`) y afinidad sensor → partición → instancia, con
+*fail-fast* si la topología no se puede declarar.
+**Costo del cambio:** la topología deja de ser trivial (el broker necesita el plugin de
+consistent-hash, hay N colas y el escalado se hace por subconjuntos de particiones) y una instancia
+mal configurada ahora no arranca en vez de degradar en silencio. Se aceptó: un arranque fallido es
+preferible a una alerta perdida.
+
+### 3. Histéresis temporal en el servicio de alertas
+
+**Decisión:** alertas con debounce temporal e histéresis de valor, no con umbral simple.
+**Por qué:** un umbral solo produce tormenta de alertas con el oleaje normal del río.
+**Costo:** agrega estado por sensor (latencia de la primera alerta) y el servicio deja de ser
+stateless, lo que complica el escalado horizontal.
+
+---
+
+## 1. Qué es
+
+WR-Sensor simula y procesa un pipeline completo de telemetría fluvial:
+
+```
+data-simulator  ──RabbitMQ (sensor.lecturas)──▶  ingestion-service  ──TimescaleDB──▶  histórico
+      │                                                   │
+      │                                                   └─RabbitMQ (sensor.alertas)──▶ alerting-service ──WebSocket──▶ clientes
+      ▼
+sensor-registry  (CRUD + auth JWT de sensores, fuente de verdad de config)
+```
+
+| Servicio | Módulo | Rol | Stack |
+|---|---|---|---|
+| `sensor-registry` | `services/sensor-registry` | CRUD de sensores + auth JWT | Java 25 · Spring Boot 4.1 · WebFlux · R2DBC · Postgres · Reactor RabbitMQ |
+| `data-simulator` | `services/data-simulator` | Genera lecturas sintéticas | WebFlux · Reactor RabbitMQ (publisher) |
+| `ingestion-service` | `services/ingestion-service` | Consume lecturas, calcula severidad, persiste | WebFlux · Reactor RabbitMQ (consumer) · R2DBC · TimescaleDB |
+| `alerting-service` | `services/alerting-service` | Histéresis + notificación WS | WebFlux · Reactor RabbitMQ (consumer) · WebSocket |
+| `query-api` | `services/query-api` | Histórico/última lectura + WS tiempo real | WebFlux · R2DBC/TimescaleDB · Reactor RabbitMQ · WebSocket |
+
+Orquestación local: **`docker compose up -d --build`** (requiere `./mvnw -o install -DskipTests`
+previo en `services/`; ver `docs/RUNBOOK.md`).
+
+Reglas de stack fijas en `stack.md` y `docs/SKILL.md` (hexagonal estricto, cero
+bloqueante, sin JPA, paginación keyset, DLQ/retry configurables).
+
+---
+
+## 2. Arquitectura (resumen)
+
+Event-driven microservices sobre **Java 25 + Spring WebFlux** con arquitectura
+**hexagonal por servicio**: pipeline reactivo de telemetría fluvial con
+RabbitMQ como columna vertebral, TimescaleDB para series temporales, auth JWT y
+realtime por WebSocket — orquestado con **Spec-Driven Development Gate/Loop
+(SDD-GL)**.
+
+```
+clientes ─HTTP/WS→ api-gateway (rate limiting + correlación) ─→ registry · query-api · alerting
+data-simulator ─sensor.lecturas→ ingestion-service ─sensor.alertas→ alerting-service ─WS→ clientes
+sensor-registry: CRUD + auth JWT (fuente de config) · query-api: histórico keyset + última lectura + WS por sensor
+```
+
+| Servicio | Rol | Notas de arquitectura |
+|---|---|---|
+| `api-gateway` | punto de entrada único | hex · WebFlux `WebClient`/`RouterFunction` · rate limiting token bucket por clase+IP · `X-Correlation-Id` · túnel WS |
+| `sensor-registry` | CRUD + auth | hex · R2DBC Postgres · guards por atributo de exchange (ADR-0006) · naive-UTC |
+| `data-simulator` | lecturas sintéticas | hex · Reactor RabbitMQ · stateless |
+| `ingestion-service` | consume + severidad + persistencia | hex · R2DBC **TimescaleDB** hypertable · DLQ/DLX configurable · consumo particionado |
+| `alerting-service` | histéresis + notificación | hex · debounce temporal · WebSocket `/ws/alertas` |
+| `query-api` | consulta histórica/última/tiempo real | hex · R2DBC lectura · consumer `sensor.lecturas` → WS por sensor · `GET /api/sensores/resumen` |
+| `web/` (SPA) | dashboard del operador | React + TypeScript + Vite · mapa **Leaflet** · servido por el gateway (mismo origen) — en Gate: `FEAT-0009/0014/0015/0016` |
+
+Características: **cero bloqueante** (sin JPA ni `.block()` en producción),
+paginación **keyset** (nunca OFFSET), reintentos/DLQ configurables en
+`application.yml`, tests trazables a los contracts (BR/AC/AF) — **554 verdes** (491 backend + 63 del SPA).
+Punto de entrada único con **CORS configurable y WebSocket autenticado** (`FEAT-0008`).
+Detalle completo: `docs/ARQUITECTURA.md` y decisiones en `docs/DECISIONES.md`.
+
+## 3. Documentación (índice)
+
+| Documento | Contenido |
+|---|---|
+| `docs/ARQUITECTURA.md` | Visión de sistema, contratos de mensajería y datos, decisiones por servicio |
+| `docs/API.md` | Endpoints por servicio: auth, códigos de error, ejemplos |
+| `docs/RUNBOOK.md` | Requisitos, build/test, credenciales dev, cómo correr e integrar |
+| `docs/DECISIONES.md` | Registro de decisiones (ADR) del ciclo SDD-GL |
+| `docs/REGISTRO-SDD.md` | Work items: contracts, estado, criterios y suites de tests |
+| `docs/ESTADO-SDD.md` | **Tablero `/sdd-status`** (contratos, criterios, suites, backlog y cómo verificarlo) |
+| `docs/CHANGELOG.md` | **Changelog del proyecto**: fixes y features con impacto, causa y evidencia |
+| `docs/CONTINUIDAD.md` | **Handoff**: cómo retomar el proyecto sin contexto previo (proceso, comandos, entorno, trampas) |
+| `docs/ESTADO-PROYECTO.md` | Bitácora de avance operativa |
+| `docs/water-monitoring-spec.md` | Spec base del dominio |
+| `contracts/` | Contracts SDD-GL (la fuente de verdad por feature) |
+| `.sdd/runs/` | Audits Glass Box de cada Loop |
+
+---
+
+## 4. Estado de los Work Items
+
+| Contract | Funcionalidad | Estado | Suite asociada |
+|---|---|---|---|
+| `FEAT-0001` | `POST /api/sensores` (alta, ADMIN) | ✅ RESOLVED | BR 12 · AC 9 · AF 5 · IT 1 |
+| `FIX-0001` | Handler emite `code` de dominio en bind | ✅ RESOLVED | 12 |
+| `FEAT-0002` | `GET /api/sensores` (listado keyset) | ✅ RESOLVED | 15+6+3 · IT 1 |
+| `FEAT-0003` | `GET /api/sensores/{id}` (detalle) | ✅ RESOLVED | 3+2 · IT 7 |
+| `FEAT-0004` | `PUT /api/sensores/{id}` (config) | ✅ RESOLVED | 7 · IT 9 |
+| `FEAT-0005` | `DELETE /api/sensores/{id}` (baja lógica) | ✅ RESOLVED | 3 · IT 8 |
+| `FEAT-0006` | Auth JWT `POST /api/auth/login` | ✅ RESOLVED | 7+4+1 · IT 8 |
+| `FEAT-0010` | `data-simulator` | ✅ RESOLVED | 13 · IT 1 |
+| `FEAT-0011` | `ingestion-service` | ✅ RESOLVED | 10 · IT 1 |
+| `FEAT-0012` | `alerting-service` | ✅ RESOLVED | 7 · IT 1 |
+| `FEAT-0013` | `query-api` | ✅ RESOLVED | 7 · IT 1 |
+| `FIX-0002` | Parser `sensor.alertas` (valorLectura/cruceHisteresis) | ✅ RESOLVED | 3 · IT 1 |
+| `FIX-0003` | Outbox + idempotencia en ingestion | ✅ RESOLVED | 13 · IT 8 |
+| `FIX-0004` | Rango físico + calidad del dato | ✅ RESOLVED | 22 · IT 6 |
+| `FIX-0005` | Particionamiento del consumo por `sensorId` | ✅ RESOLVED | 20 · IT 7 |
+| `FEAT-0007` | `api-gateway`: entrada única + rate limiting | ✅ RESOLVED | 31 · IT 16 |
+| `FIX-0006` | Versionado del schema de `sensor.lecturas` (v1) | ✅ RESOLVED | 27 · IT 7 |
+| `FIX-0007` | Resiliencia del lookup de config (breaker + cache TTL) | ✅ RESOLVED | 20 · IT 5 |
+| `FEAT-0008` | Habilitadores del frontend: CORS, WS autenticado y resumen | ✅ RESOLVED | 59 · IT 20 |
+| `FIX-0008` | Seguridad del punto de entrada (secreto WS, headers/CSP, hosting seguro) | ✅ RESOLVED | 16 · IT 8 |
+| `FEAT-0009` | SPA núcleo: sesión, shell, mapa y hosting desde el gateway | ✅ RESOLVED | 22 (web) · IT 10 |
+| `FEAT-0014` | SPA: detalle en vivo (WS de lecturas + serie de 24 h) | ✅ RESOLVED | 15 (web) · docs 5 |
+| `FEAT-0015` | SPA: alertas en vivo (feed + refresco del mapa) | ✅ RESOLVED | 14 (web) · docs 5 |
+| `FEAT-0016` | SPA: administración y demo (CRUD ADMIN + simulador) | ✅ RESOLVED | 12 (web) · docs 5 |
+| `FIX-0009` | Portabilidad Quickstart y DX del Frontend SPA | ✅ RESOLVED | docs 8 |
+| `FEAT-0017` | Banner visual de cabecera y assets de arquitectura | ✅ RESOLVED | docs 6 |
+| `FEAT-0018` | CI real por servicio + wrapper + quickstart reproducible | ✅ RESOLVED | docs 7 |
+| `FEAT-0019` | Credenciales dev, README bilingüe y registro de decisiones | ✅ RESOLVED | docs 8 |
+
+**Suites verdes:** `sensor-registry` 123 · `data-simulator` 20 · `ingestion-service` 121 ·
+`alerting-service` 12 · `query-api` 41 · `api-gateway` 174 → **491 tests** del backend (JUnit 5; ITs
+con Testcontainers — los del gateway usan downstreams stub) **+ 63 del SPA** (`web/`, Vitest + RTL +
+MSW). La suite completa (unitaria **y** de integración) corre en GitHub Actions con una matriz por
+servicio: [`.github/workflows/maven-build.yml`](.github/workflows/maven-build.yml). Detalle por
+módulo en `docs/RUNBOOK.md` §2 y §10. Playwright para e2e del SPA.
+
+---
+
+## 5. Quickstart
+
+Requisitos: JDK 25, Node.js 20+, Docker Desktop. **Maven no hace falta**: el wrapper incluido lo
+resuelve solo.
+
+### Backend (Java / Spring WebFlux)
+
+```bash
+# 1) Tests unitarios de todos los servicios (offline, sin Docker)
+cd services
+./mvnw test
+
+# 2) Tests unitarios de un solo modulo
+./mvnw -pl sensor-registry test
+
+# 3) Correr un IT con Testcontainers (requiere Docker Desktop)
+./mvnw -pl sensor-registry test -Dtest='FEAT0001MainFlowIT'
+```
+
+> En Windows usá `mvnw.cmd` en lugar de `./mvnw`. Si Maven o Java no están en el `PATH`, definir
+> `JAVA_HOME`; el wrapper no necesita Maven instalado. Ver `docs/RUNBOOK.md` §1 y §2.
+
+### Frontend SPA (React / Vite)
+
+```bash
+# 1) Instalar dependencias
+cd web
+npm ci
+
+# 2) Correr tests unitarios / componentes (Vitest)
+npm test
+
+# 3) Servidor de desarrollo Vite (http://localhost:5173)
+npm run dev
+```
+
+### Credenciales de desarrollo
+
+No se publican en el README (regla del contrato FEAT-0018: nada de credenciales en texto plano).
+Las dos cuentas dev (`ADMIN` y `VIEWER`) las siembra `DevUserSeeder` al arrancar
+`services/sensor-registry`: los emails y el placeholder de password dev están en sus constantes
+(`EMAIL_ADMIN` / `DEV_PASSWORD_ADMIN`, `EMAIL_VIEWER` / `DEV_PASSWORD_VIEWER`); el valor por defecto
+es `localdev` (FEAT-0019, sobreescribible por `.env`, ver `.env.example`) y el hash BCrypt se genera
+en runtime — nunca hay password en claro en la base.
+
+---
+
+## 6. Nota sobre el frame SDD-GL
+
+Frame **SDD-GL v0.4.0** instalado en el repo (protocolos EXPRESS/STRICT, Glass Box
+en `.sdd/runs/`, servidor MCP en `mcp/server.js`, orquestadores `CLAUDE.md`/`AGENTS.md`, skills en `.agents/skills/`,
+presets y spec MCP en `mcp/`). Autor: [CharlyZeta/SDD-GL](https://github.com/CharlyZeta/SDD-GL).
+
+
+
+
+
+

@@ -107,8 +107,8 @@ docker compose up -d --build
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-Credenciales de desarrollo: `admin@wrsensor.local` / `Admin123!` (ADMIN) y
-`viewer@wrsensor.local` / `Viewer123!` (VIEWER). Secreto JWT dev:
+Credenciales de desarrollo: `admin@wrsensor.local` / `localdev` (ADMIN) y
+`viewer@wrsensor.local` / `localdev` (VIEWER). Secreto JWT dev:
 `wrsensor-dev-secret-2026-no-usar-en-prod` (`AUTH_JWT_SECRET`).
 
 Endpoints útiles: login `POST /api/auth/login` · gateway `http://localhost:8084` ·

@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LoginServiceTest {
 
     private static final String HASH = "$2a$10$hashdeejemplo";
-    private static final String PASSWORD_OK = "Admin123!";
+    private static final String PASSWORD_OK = "localdev";
     private static final Usuario ADMIN = new Usuario(
             UUID.fromString("11111111-1111-4111-8111-111111111111"),
             "admin@wrsensor.local", HASH, Rol.ADMIN);

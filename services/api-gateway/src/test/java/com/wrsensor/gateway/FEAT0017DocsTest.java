@@ -43,15 +43,27 @@ class FEAT0017DocsTest {
     }
 
     @Test
-    @DisplayName("BR-002/unit-test:FEAT-0017-br002: La documentación técnica y arquitectura en README.md se preserva intacta")
+    @DisplayName("BR-002/unit-test:FEAT-0017-br002: La documentación técnica se preserva en las dos versiones del README")
     void br002_preservaDocumentacionTecnica() throws IOException {
-        String readme = leer("README.md");
-        assertThat(readme)
+        // FEAT-0019: el README pasó a ser bilingüe (README.md en inglés, README.es.md en español).
+        // Se verifica la misma estructura de secciones en los dos, no solo en uno.
+        String ingles = leer("README.md");
+        String espanol = leer("README.es.md");
+        assertThat(ingles)
+                .contains("## 1. What it is")
+                .contains("## 2. Architecture (overview)")
+                .contains("## 3. Documentation (index)")
+                .contains("## 4. Work item status")
+                .contains("## 5. Quickstart")
+                .contains("## 6. About the SDD-GL frame");
+        assertThat(espanol)
                 .contains("## 1. Qué es")
                 .contains("## 2. Arquitectura (resumen)")
                 .contains("## 3. Documentación (índice)")
                 .contains("## 4. Estado de los Work Items")
                 .contains("## 5. Quickstart")
+                .contains("## 6. Nota sobre el frame SDD-GL");
+        assertThat(ingles)
                 .contains("data-simulator")
                 .contains("sensor-registry")
                 .contains("ingestion-service")

@@ -142,10 +142,10 @@ type HandlerLogin = (info: { request: Request }) => Response | Promise<Response>
 
 let loginHandler: HandlerLogin = async ({ request }) => {
   const cuerpo = (await request.json()) as { email?: string; password?: string }
-  if (cuerpo.email === 'admin@wrsensor.local' && cuerpo.password === 'Admin123!') {
+  if (cuerpo.email === 'admin@wrsensor.local' && cuerpo.password === 'localdev') {
     return HttpResponse.json({ token: TOKEN_VALIDO, rol: 'ADMIN', expiraEnSegundos: 3600 })
   }
-  if (cuerpo.email === 'viewer@wrsensor.local' && cuerpo.password === 'Viewer123!') {
+  if (cuerpo.email === 'viewer@wrsensor.local' && cuerpo.password === 'localdev') {
     return HttpResponse.json({ token: TOKEN_VALIDO, rol: 'VIEWER', expiraEnSegundos: 3600 })
   }
   return HttpResponse.json(
@@ -162,7 +162,7 @@ export function conLogin(handler: HandlerLogin): void {
 export function restaurarLogin(): void {
   loginHandler = async ({ request }) => {
     const cuerpo = (await request.json()) as { email?: string; password?: string }
-    if (cuerpo.email === 'admin@wrsensor.local' && cuerpo.password === 'Admin123!') {
+    if (cuerpo.email === 'admin@wrsensor.local' && cuerpo.password === 'localdev') {
       return HttpResponse.json({ token: TOKEN_VALIDO, rol: 'ADMIN', expiraEnSegundos: 3600 })
     }
     return HttpResponse.json(

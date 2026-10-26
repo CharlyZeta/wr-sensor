@@ -136,7 +136,7 @@ class FIX0007ResilienciaTest {
         return new IngestionProperties(
                 300L,
                 new IngestionProperties.Registry("http://127.0.0.1:" + puerto,
-                        new IngestionProperties.Registry.Auth("viewer@wrsensor.local", "Viewer123!"),
+                        new IngestionProperties.Registry.Auth("viewer@wrsensor.local", "localdev"),
                         timeoutMs, 1000L,
                         new IngestionProperties.Registry.Cache(ttl),
                         new IngestionProperties.Registry.Circuito(fallos, segAbierto, exitos)),

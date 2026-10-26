@@ -124,7 +124,7 @@ cacheada para ese sensor.
 
 ```bash
 TOKEN=$(curl -s localhost:8080/api/auth/login -H 'Content-Type: application/json' \
-  -d '{"email":"admin@wrsensor.local","password":"Admin123!"}' | sed -E 's/.*"token":"([^"]+)".*/\1/')
+  -d '{"email":"admin@wrsensor.local","password":"localdev"}' | sed -E 's/.*"token":"([^"]+)".*/\1/')
 
 curl -s localhost:8080/api/sensores -H "Authorization: Bearer $TOKEN"
 curl -s localhost:8080/api/sensores -X POST -H "Authorization: Bearer $TOKEN" \

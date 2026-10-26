@@ -23,7 +23,8 @@ query:
     base-url: ${REGISTRY_URL:http://localhost:8080}
     auth:
       email: ${QUERY_REGISTRY_EMAIL:viewer@wrsensor.local}
-      password: ${QUERY_REGISTRY_PASS:Viewer123!}
+      # FEAT-0019: placeholder dev (el seed DevUserSeeder usa el mismo valor); override por env.
+      password: ${QUERY_REGISTRY_PASS:localdev}
     timeout-ms: ${QUERY_REGISTRY_TIMEOUT_MS:5000}
     conexion-timeout-ms: ${QUERY_REGISTRY_CONEXION_TIMEOUT_MS:2000}
     limit-pagina: ${QUERY_REGISTRY_LIMIT_PAGINA:200}

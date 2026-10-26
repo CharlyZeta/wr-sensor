@@ -12,16 +12,18 @@ import java.util.UUID;
 /**
  * Seed de usuarios dev (decision HO-Gate FEAT-0006): no hay alta de usuarios en
  * v1, asi que al arrancar se aseguran 2 cuentas si no existen (upsert por email,
- * BR-002 email unico). Passwords dev documentadas (NO usar en entornos reales).
- * El hash BCrypt se genera en runtime (BR-001: nunca password en claro).
+ * BR-002 email unico). FEAT-0019: la password dev es el placeholder {@code localdev}
+ * (mismo valor que docker-compose y los application.yml de los servicios); NO usar
+ * en entornos reales. El hash BCrypt se genera en runtime (BR-001: nunca password
+ * en claro en la base).
  */
 @Component
 public class DevUserSeeder implements ApplicationRunner {
 
     public static final String EMAIL_ADMIN = "admin@wrsensor.local";
-    public static final String DEV_PASSWORD_ADMIN = "Admin123!";
+    public static final String DEV_PASSWORD_ADMIN = "localdev";
     public static final String EMAIL_VIEWER = "viewer@wrsensor.local";
-    public static final String DEV_PASSWORD_VIEWER = "Viewer123!";
+    public static final String DEV_PASSWORD_VIEWER = "localdev";
 
     private static final String UPSERT = """
             INSERT INTO usuario (id, email, password_hash, rol)

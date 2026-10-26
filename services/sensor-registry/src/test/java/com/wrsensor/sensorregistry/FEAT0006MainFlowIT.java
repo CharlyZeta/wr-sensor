@@ -32,7 +32,7 @@ import java.util.UUID;
  *
  * <p>Levanta Postgres + RabbitMQ (Testcontainers), arranca la app completa; el
  * {@code DevUserSeeder} garantiza los usuarios dev (admin@wrsensor.local /
- * viewer@wrsensor.local, passwords Admin123!/Viewer123!). Se siembra un sensor
+ * viewer@wrsensor.local, passwords `localdev`, FEAT-0019). Se siembra un sensor
  * para verificar un endpoint protegido con JWT real (AC-006) y los rechazos
  * (AC-007/AC-008). Tokens "externos" (expirado / firma invalida / rol ajeno) se
  * mintean con {@link TestTokens} (mismo secret dev).
@@ -139,14 +139,14 @@ class FEAT0006MainFlowIT {
     @Test
     @DisplayName("integration-test:FEAT-0006-main — login admin → 200 {token, rol=ADMIN, expiraEnSegundos} y el token decodifica rol=ADMIN con exp futuro")
     void mainFlow_loginAdminEmiteJwt() {
-        login("admin@wrsensor.local", "Admin123!")
+        login("admin@wrsensor.local", "localdev")
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.token").isNotEmpty()
                 .jsonPath("$.rol").isEqualTo("ADMIN")
                 .jsonPath("$.expiraEnSegundos").isEqualTo(3600);
 
-        String token = tokenDe("admin@wrsensor.local", "Admin123!");
+        String token = tokenDe("admin@wrsensor.local", "localdev");
         String payload = TestTokens.decodePayload(token);
         org.assertj.core.api.Assertions.assertThat(payload).contains("\"rol\":\"ADMIN\"");
         long exp = TestTokens.expOf(token);
@@ -156,7 +156,7 @@ class FEAT0006MainFlowIT {
     @Test
     @DisplayName("AC-002: login viewer → 200 con rol=VIEWER")
     void ac002_loginViewer() {
-        login("viewer@wrsensor.local", "Viewer123!")
+        login("viewer@wrsensor.local", "localdev")
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.rol").isEqualTo("VIEWER");
@@ -173,7 +173,7 @@ class FEAT0006MainFlowIT {
     @Test
     @DisplayName("AF-03 / AC-004: email inexistente → 401 INVALID_CREDENTIALS (indistinguible)")
     void ac004_emailInexistente() {
-        login("nadie@wrsensor.local", "Admin123!")
+        login("nadie@wrsensor.local", "localdev")
                 .expectStatus().isUnauthorized()
                 .expectBody().jsonPath("$.code").isEqualTo("INVALID_CREDENTIALS");
     }
@@ -181,7 +181,7 @@ class FEAT0006MainFlowIT {
     @Test
     @DisplayName("AF-01 / AF-02 / AC-005: email malformado o password vacia → 400 SENSOR_INVALID_REQUEST")
     void ac005_bodyInvalido() {
-        login("no-es-un-email", "Admin123!")
+        login("no-es-un-email", "localdev")
                 .expectStatus().isBadRequest()
                 .expectBody().jsonPath("$.code").isEqualTo("SENSOR_INVALID_REQUEST");
 
@@ -193,7 +193,7 @@ class FEAT0006MainFlowIT {
     @Test
     @DisplayName("BR-004 / AC-006: endpoint protegido con JWT real (ADMIN) → 200")
     void ac006_protegidoConTokenValido() {
-        String token = tokenDe("admin@wrsensor.local", "Admin123!");
+        String token = tokenDe("admin@wrsensor.local", "localdev");
         getProtected(SENSOR_ID, "Bearer " + token)
                 .expectStatus().isOk()
                 .expectBody().jsonPath("$.codigo").isEqualTo("S-DET-A");

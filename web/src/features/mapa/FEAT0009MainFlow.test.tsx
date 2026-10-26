@@ -25,7 +25,7 @@ function renderApp(ruta = '/mapa') {
 
 async function entrar(usuario: ReturnType<typeof userEvent.setup>) {
   await usuario.type(screen.getByLabelText('Usuario'), 'admin@wrsensor.local')
-  await usuario.type(screen.getByLabelText('Contraseña'), 'Admin123!')
+  await usuario.type(screen.getByLabelText('Contraseña'), 'localdev')
   await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
 }
 
@@ -68,7 +68,7 @@ describe('FEAT-0009 · Alternative Flows', () => {
     // Se hace el login a mano (no con `entrar()`, que espera el mapa): acá el resumen responde 401,
     // así que el SPA cierra la sesión y vuelve al login sin llegar a pintar el mapa.
     await usuario.type(await screen.findByLabelText('Usuario'), 'admin@wrsensor.local')
-    await usuario.type(screen.getByLabelText('Contraseña'), 'Admin123!')
+    await usuario.type(screen.getByLabelText('Contraseña'), 'localdev')
     await usuario.click(screen.getByRole('button', { name: 'Entrar' }))
 
     // El estado final observable es doble: sesión borrada y pantalla de login otra vez.
